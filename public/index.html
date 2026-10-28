@@ -208,6 +208,12 @@
   td.datecell.soon input { color:var(--amber); font-weight:600; }
   td.datecell .flag { position:absolute; right:28px; top:50%; transform:translateY(-50%); font-size:9px; font-weight:700; letter-spacing:.08em; padding:2px 6px; border-radius:6px; pointer-events:none; }
   td.datecell { position:relative; }
+  td.datecell.fmt input[type=text] { padding-right:30px; }
+  td.datecell.fmt.overdue input[type=text], td.datecell.fmt.soon input[type=text] { padding-right:96px; }
+  td.datecell .pick { position:absolute; right:4px; top:50%; transform:translateY(-50%); border:none; background:none; padding:3px 5px; border-radius:7px; color:var(--faint); cursor:pointer; display:inline-grid; place-items:center; }
+  td.datecell .pick svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  td.datecell:hover .pick { color:var(--accent-ink); }
+  td.datecell .pick input { position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; }
   td.datecell.overdue .flag { background:var(--red-soft); color:var(--red); }
   td.datecell.soon .flag { background:var(--amber-soft); color:var(--amber); }
 
@@ -295,6 +301,43 @@
 <script>
 const TYPES = ['text', 'number', 'date', 'checkbox', 'choice'];
 const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice' };
+// Date columns store ISO yyyy-mm-dd; `format` only changes how a date is shown and typed.
+const DATE_FORMATS = { native: 'Browser default (date picker)', dmy: '31/12/2026', mdy: '12/31/2026', ymd: '2026-12-31', dmmmy: '31 Dec 2026', long: '31 December 2026' };
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const dateFormat = c => DATE_FORMATS[c.format] ? c.format : 'native';
+function fmtDate(iso, fmt) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return iso || '';
+  const [, y, mo, d] = m, mon = MONTHS[Number(mo) - 1] || mo;
+  switch (fmt) {
+    case 'dmy': return d + '/' + mo + '/' + y;
+    case 'mdy': return mo + '/' + d + '/' + y;
+    case 'dmmmy': return Number(d) + ' ' + mon.slice(0, 3) + ' ' + y;
+    case 'long': return Number(d) + ' ' + mon + ' ' + y;
+    default: return iso;
+  }
+}
+// Turn what someone typed back into ISO, or '' when it is not a date. Separators are lenient; 2-digit years mean 20xx.
+function parseDate(text, fmt) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const pad = n => String(n).padStart(2, '0');
+  const valid = (y, m, d) => { const dt = new Date(Date.UTC(y, m - 1, d)); return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? y + '-' + pad(m) + '-' + pad(d) : ''; };
+  let m;
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t))) return valid(+m[1], +m[2], +m[3]);
+  const named = /^(\d{1,2})\s+([a-z]+)\.?\s+(\d{2,4})$/i.exec(t) || (m = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{2,4})$/i.exec(t)) && [m[0], m[2], m[1], m[3]];   // '31 Dec 2026' or 'Dec 31, 2026'
+  if ((m = named)) {
+    const mi = MONTHS.findIndex(n => n.toLowerCase().startsWith(m[2].toLowerCase().slice(0, 3)));
+    if (mi < 0) return '';
+    const y = m[3].length <= 2 ? 2000 + +m[3] : +m[3];
+    return valid(y, mi + 1, +m[1]);
+  }
+  if ((m = /^(\d{1,2})[\/.\-\s](\d{1,2})[\/.\-\s](\d{2,4})$/.exec(t))) {
+    const y = m[3].length <= 2 ? 2000 + +m[3] : +m[3];
+    return fmt === 'mdy' ? valid(y, +m[1], +m[2]) : valid(y, +m[2], +m[1]);
+  }
+  return '';
+}
 const isMulti = c => c.type === 'choice' && !!c.multi;
 // Multi-choice values are arrays in memory and 'a|b' strings in CSV.
 const multiVals = v => Array.isArray(v) ? v : v === '' || v == null ? [] : String(v).split('|').map(x => x.trim()).filter(Boolean);
@@ -564,7 +607,7 @@ function aggregate(c, list) {
   if (c.type === 'date') {
     if (!filled.length) return '';
     const sorted = filled.slice().sort();
-    return c.agg === 'min' ? sorted[0] : sorted[sorted.length - 1];
+    return fmtDate(c.agg === 'min' ? sorted[0] : sorted[sorted.length - 1], dateFormat(c));
   }
   const nums = filled.map(Number).filter(isFinite);
   if (!nums.length) return '';
@@ -621,7 +664,8 @@ function openMenu(anchor, c, ui, rows, refresh) {
       return el('label', { className: 'vrow' }, cb, el('span', { textContent: text }));
     };
     list.append(row('(Select all)', vis.length > 0 && vis.every(v => chosen.has(v)), on => { vis.forEach(v => (on ? chosen.add(v) : chosen.delete(v))); drawList(); }));
-    vis.forEach(v => list.append(row(v || '(Blanks)', chosen.has(v), on => (on ? chosen.add(v) : chosen.delete(v)))));
+    const show = v => !v ? '(Blanks)' : c.type === 'date' ? fmtDate(v, dateFormat(c)) : v;
+    vis.forEach(v => list.append(row(show(v), chosen.has(v), on => (on ? chosen.add(v) : chosen.delete(v)))));
   };
   q.oninput = drawList;
   drawList();
@@ -849,6 +893,23 @@ function makeGrid(level, rows, ui, opts) {
       return td;
     }
     if (c.type === 'choice') return choiceCell(row, c);
+    const fmt = c.type === 'date' ? dateFormat(c) : null;
+    if (fmt && fmt !== 'native') {
+      inp = el('input', { type: 'text', value: fmtDate(row[c.key], fmt), placeholder: DATE_FORMATS[fmt], spellcheck: false });
+      inp.onchange = () => {
+        if (!inp.value.trim()) { row[c.key] = ''; save(); body(); return; }
+        const iso = parseDate(inp.value, fmt);
+        if (!iso) { inp.value = fmtDate(row[c.key], fmt); inp.animate([{ background: 'var(--red-soft)' }, {}], 500); return; }   // not a date: keep the old value
+        row[c.key] = iso; save(); body();
+      };
+      const native = el('input', { type: 'date', tabIndex: -1 });
+      native.onchange = () => { row[c.key] = native.value; save(); body(); };
+      const pick = el('button', { type: 'button', className: 'pick', title: 'Pick a date', onclick: e => { e.stopPropagation(); native.value = row[c.key] || ''; try { native.showPicker(); } catch { native.style.pointerEvents = 'auto'; native.focus(); native.click(); } } },
+        svg('M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z'), native);
+      td.className = 'datecell fmt';
+      td.append(inp, pick);
+      return td;
+    }
     inp = el('input', { type: c.type === 'number' ? 'number' : c.type === 'date' ? 'date' : 'text', value: row[c.key] ?? '' });
     inp.onchange = () => { row[c.key] = c.type === 'number' && inp.value !== '' ? Number(inp.value) : inp.value; save(); body(); };
     const decorate = () => {
@@ -1241,6 +1302,12 @@ function openConfig() {
           look.onchange = () => (c.look = look.value);
           setting(small('Show as'), look);
         }
+        if (c.type === 'date') {
+          const fmtSel = el('select');
+          Object.entries(DATE_FORMATS).forEach(([v, t]) => fmtSel.append(el('option', { value: v, textContent: t, selected: dateFormat(c) === v })));
+          fmtSel.onchange = () => (c.format = fmtSel.value);
+          setting(small('Format'), fmtSel);
+        }
         if (c.type === 'choice') {
           c.options = c.options || []; c.colors = c.colors || {};
           const list = el('div', { className: 'optlist' });
@@ -1376,6 +1443,7 @@ function openConfig() {
         used.add(key);
         const out = { key, label: c.label.trim(), type: c.type };
         if (c.type === 'text') out.look = c.look || 'plain';
+        if (c.type === 'date' && c.format && c.format !== 'native' && DATE_FORMATS[c.format]) out.format = c.format;
         if (c.type === 'choice') {
           out.options = [...new Set((c.options || []).map(o => o.trim()).filter(Boolean))];
           const colors = {}; out.options.forEach(o => { if (c.colors && TONES.includes(c.colors[o])) colors[o] = c.colors[o]; });
