@@ -233,6 +233,9 @@
   .empty .art { width:72px; height:72px; margin:0 auto 14px; border-radius:22px; background:linear-gradient(135deg,var(--accent-soft),transparent); display:grid; place-items:center; }
   .empty .art svg { width:34px; height:34px; stroke:var(--accent); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .empty b { display:block; color:var(--text); font-size:15px; margin-bottom:4px; }
+  .empty button.art { padding:0; border:none; cursor:pointer; transition:.15s; }
+  .empty button.art:hover { background:var(--accent-soft); box-shadow:var(--glow); transform:translateY(-2px); }
+  .empty button.art:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   .bar { padding:10px 12px; display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); background:var(--head); }
 
   tfoot td { background:var(--head); border-top:1px solid var(--line-strong); border-bottom:none; padding:4px 10px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted); font-weight:500; }
@@ -730,10 +733,14 @@ function makeGrid(level, rows, ui, opts) {
     }
     countEl.textContent = list.length === rows.length ? rows.length + ' rows' : list.length + ' of ' + rows.length + ' rows';
     if (!list.length) {
-      const art = el('div', { className: 'art' }, svg(rows.length ? 'M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z' : 'M12 5v14M5 12h14'));
+      // No rows at all: the + is a real button that adds the first one. Rows hidden by a filter: a plain search glyph.
+      const none = !rows.length;
+      const art = none
+        ? el('button', { type: 'button', className: 'art', ariaLabel: 'Add a row', onclick: () => addRow() }, svg('M12 5v14M5 12h14'))
+        : el('div', { className: 'art' }, svg('M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z'));
       tbody.append(el('tr', {}, el('td', { colSpan: span, className: 'empty' }, art,
-        el('b', { textContent: rows.length ? 'Nothing matches' : 'Nothing here yet' }),
-        el('span', { textContent: rows.length ? 'Try clearing a filter or changing your search.' : 'Add a row to get started.' }))));
+        el('b', { textContent: none ? 'Nothing here yet' : 'Nothing matches' }),
+        el('span', { textContent: none ? 'Click + to add the first row.' : 'Try clearing a filter or changing your search.' }))));
     }
     const firstText = cols.find(c => c.type === 'text');
     list.forEach(row => {
