@@ -149,6 +149,15 @@
   td.personcell .add { color:var(--faint); font-size:11px; padding:1px 6px; border-radius:999px; border:1px dashed var(--line-strong); }
   td.personcell:hover .add { color:var(--accent-ink); border-color:var(--accent); }
   td.personcell.editing .who { box-shadow:inset 0 0 0 2px var(--accent); border-radius:8px; }
+  td.personcell { padding:3px 8px; cursor:pointer; }
+  td.personcell .who { display:flex; align-items:center; gap:8px; min-height:22px; padding:1px 4px; font-size:12.5px; }
+  td.personcell .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .menu.people .vrow { gap:10px; }
+  .menu.people .vrow.hi { background:var(--accent-soft); }
+  .menu.people .vrow .tick { color:var(--accent-ink); font-weight:700; }
+  .menu.people .vrow.new { color:var(--accent-ink); font-weight:600; }
+  .menu.people .vrow.clear { color:var(--muted); }
+  .menu.people .vals { max-height:260px; }
   .vrow .av { width:22px; height:22px; font-size:9.5px; }
   .pplrow { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
   .pplrow input[type=text], .pplrow input[type=email] { font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; }
@@ -307,8 +316,8 @@
 </div>
 <dialog id="dlg"></dialog>
 <script>
-const TYPES = ['text', 'number', 'date', 'checkbox', 'choice', 'notes'];
-const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice', notes: 'Notes (rich text)' };
+const TYPES = ['text', 'number', 'date', 'checkbox', 'choice', 'person', 'notes'];
+const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice', person: 'Person', notes: 'Notes (rich text)' };
 const plainText = html => String(html ?? '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();   // notes column: HTML → searchable text
 // Date columns store ISO yyyy-mm-dd; `format` only changes how a date is shown and typed.
 const DATE_FORMATS = { native: 'Browser default (date picker)', dmy: '31/12/2026', mdy: '12/31/2026', ymd: '2026-12-31', dmmmy: '31 Dec 2026', long: '31 December 2026' };
@@ -475,15 +484,16 @@ function matches(row, cols, ui) {
 
 // ---- semantic helpers (status pills, people, dates) ----
 // Column behaviours are explicit settings chosen in Configure (never guessed from the column name):
-//   text:     look = 'plain' | 'status' | 'person'
+//   text:     look = 'plain' | 'status'
+//   person:   picked from the people list (Configure → People); new names can be added from the cell
 //   date:     deadline = true/false (flag when in the past), doneBy = key of a checkbox column that cancels the flag ('' = always flag)
 //   checkbox: done = true marks the record as done (strike-through, progress bars, sub record counts)
 const isStatusCol = c => c.type === 'text' && c.look === 'status';
-const isPersonCol = c => c.type === 'text' && c.look === 'person';
+const isPersonCol = c => c.type === 'person';
 // Defaults for a brand-new column, suggested from its name; shown in Configure where they can be changed.
 function suggestBehaviour(c, cols) {
   const n = (c.key + ' ' + c.label).toLowerCase();
-  if (c.type === 'text' && c.look === undefined) c.look = /status|state|stage|priority|phase/.test(n) ? 'status' : /owner|assignee|person|who|lead|user/.test(n) ? 'person' : 'plain';
+  if (c.type === 'text' && c.look === undefined) c.look = /status|state|stage|priority|phase/.test(n) ? 'status' : 'plain';
 }
 
 // ---- rules: "when every condition holds, apply an effect" — set per level in Configure, nothing is inferred ----
@@ -494,6 +504,7 @@ const OPS = {
   number:   [['eq', '='], ['ne', '≠'], ['lt', '<'], ['gt', '>'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
   date:     [['past', 'is in the past'], ['today', 'is today'], ['within', 'is within (days)'], ['beyond', 'is more than (days) away'], ['before', 'is before (date)'], ['after', 'is after (date)'], ['eq', 'is (date)'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
   checkbox: [['checked', 'is ticked'], ['unchecked', 'is not ticked']],
+  person:   [['is', 'is'], ['isNot', 'is not'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
   notes:    [['contains', 'contains'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
 };
 const OP_NEEDS_VALUE = new Set(['is', 'isNot', 'contains', 'eq', 'ne', 'lt', 'gt', 'within', 'beyond', 'before', 'after']);
@@ -629,6 +640,7 @@ const aggOptions = c => ({
   checkbox: ['count'],
   text: ['count', 'distinct'],
   choice: ['count', 'distinct'],
+  person: ['count', 'distinct'],
   notes: ['count'],
 }[c.type]);
 const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -922,6 +934,7 @@ function makeGrid(level, rows, ui, opts) {
       return td;
     }
     if (c.type === 'choice') return choiceCell(row, c);
+    if (c.type === 'person') return personCell(row, c);
     if (c.type === 'notes') {
       td.className = 'note';
       const has = hasNotes(row[c.key]);
@@ -952,17 +965,71 @@ function makeGrid(level, rows, ui, opts) {
     inp.onchange = () => { row[c.key] = c.type === 'number' && inp.value !== '' ? Number(inp.value) : inp.value; save(); body(); };
     const decorate = () => {
       if (isStatusCol(c)) { td.className = 'pillcell'; td.dataset.tone = tone(inp.value); inp.style.width = ''; inp.style.width = Math.max(60, inp.value.length * 7.5 + 28) + 'px'; }
-      else if (isPersonCol(c)) {
-        td.className = 'person';
-        td.querySelector('.av')?.remove();
-        const av = avatar(inp.value.trim());
-        if (inp.value.trim()) { av.style.cursor = 'pointer'; av.onclick = e => { e.stopPropagation(); openAvatarMenu(av, inp.value.trim()); }; }
-        td.prepend(av);
-      } else if (c.type === 'date') td.className = 'datecell';
+      else if (c.type === 'date') td.className = 'datecell';
       else if (c.type === 'number') td.className = 'num';
     };
     td.append(inp);
     decorate();
+    return td;
+  }
+
+  // Person cell: shows the avatar and name; click to pick from the people list, type to filter or add someone new.
+  function personCell(row, c) {
+    const td = el('td', { className: 'personcell', title: 'Click to choose' });
+    const who = el('span', { className: 'who' });
+    const paint = () => {
+      who.replaceChildren();
+      const name = String(row[c.key] || '').trim();
+      if (name) who.append(avatar(name), el('span', { className: 'nm', textContent: name }));
+      else who.append(el('span', { className: 'add', textContent: '+ Assign' }));
+    };
+    paint();
+    td.append(who);
+    td.onclick = () => {
+      closeMenu();
+      const current = String(row[c.key] || '').trim();
+      const m = (menuEl = el('div', { className: 'menu people' }));
+      const q = el('input', { placeholder: 'Type a name…', value: '' });
+      const list = el('div', { className: 'vals' });
+      const names = [...new Set([...people().map(p => p.name), ...namesInUse()])].sort((a, b) => a.localeCompare(b));
+      const pick = name => { row[c.key] = name; if (name && !findPerson(name)) people().push({ name }); save(); closeMenu(); body(); };
+      let hi = 0;
+      const drawList = () => {
+        list.replaceChildren();
+        const term = q.value.trim().toLowerCase();
+        const vis = names.filter(n => n.toLowerCase().includes(term));
+        const exact = names.some(n => n.toLowerCase() === term);
+        const rowsOut = [];
+        vis.forEach(n => rowsOut.push(el('div', { className: 'vrow' + (n === current ? ' cur' : ''), onclick: () => pick(n) }, avatar(n), el('span', { textContent: n, style: 'flex:1' }), n === current ? el('span', { className: 'tick', textContent: '✓' }) : '')));
+        if (term && !exact) rowsOut.push(el('div', { className: 'vrow new', onclick: () => pick(q.value.trim()) }, el('span', { className: 'av', textContent: '+', style: 'background:var(--accent)' }), el('span', { textContent: 'Add “' + q.value.trim() + '”' })));
+        if (current) rowsOut.push(el('div', { className: 'vrow clear', onclick: () => pick('') }, el('span', { className: 'av', textContent: '–', style: 'background:var(--faint)' }), el('span', { textContent: 'Unassign' })));
+        if (!rowsOut.length) rowsOut.push(el('div', { className: 'aggrow', textContent: 'No people yet. Type a name to add one.' }));
+        hi = Math.min(hi, rowsOut.length - 1);
+        rowsOut.forEach((r, i) => { if (r.classList.contains('vrow')) r.classList.toggle('hi', i === hi); });
+        list.append(...rowsOut);
+      };
+      q.oninput = () => { hi = 0; drawList(); };
+      q.onkeydown = e => {
+        const items = [...list.querySelectorAll('.vrow')];
+        if (e.key === 'ArrowDown') { hi = Math.min(hi + 1, items.length - 1); drawList(); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { hi = Math.max(hi - 1, 0); drawList(); e.preventDefault(); }
+        else if (e.key === 'Enter') { e.preventDefault(); const it = list.querySelectorAll('.vrow')[hi]; if (it) it.click(); }
+        else if (e.key === 'Escape') closeMenu();
+      };
+      drawList();
+      const foot = el('div', { className: 'mbtns' });
+      if (current) foot.append(el('button', { type: 'button', className: 'ghost', textContent: 'Avatar…', onclick: () => { const a = td.querySelector('.av'); closeMenu(); openAvatarMenu(a || td, current); } }));
+      foot.append(el('button', { type: 'button', className: 'ghost', textContent: 'Manage people', onclick: () => { closeMenu(); openConfig(); } }));
+      m.append(q, list, foot);
+      td.classList.add('editing');
+      const obs = new MutationObserver(() => { if (!document.body.contains(m)) { td.classList.remove('editing'); obs.disconnect(); } });
+      obs.observe(document.body, { childList: true });
+      document.body.append(m);
+      const r = td.getBoundingClientRect();
+      m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+      m.style.top = r.bottom + 4 + 'px';
+      q.focus();
+    };
     return td;
   }
 
@@ -1335,7 +1402,7 @@ function openConfig() {
         const small = t => el('span', { style: 'color:var(--muted);font-size:12.5px;white-space:nowrap', textContent: t });
         if (c.type === 'text') {
           const look = el('select');
-          [['plain', 'Plain text'], ['status', 'Status pill (coloured by value)'], ['person', 'Person (avatar with initials)']].forEach(([v, t]) => look.append(el('option', { value: v, textContent: t, selected: c.look === v })));
+          [['plain', 'Plain text'], ['status', 'Status pill (coloured by value)']].forEach(([v, t]) => look.append(el('option', { value: v, textContent: t, selected: c.look === v })));
           look.onchange = () => (c.look = look.value);
           setting(small('Show as'), look);
         }
@@ -1524,7 +1591,7 @@ function openConfig() {
   dlg.showModal();
 }
 
-fetch('/api/state').then(r => r.json()).then(s => { state = s; render(); });
+fetch('/api/state').then(r => r.json()).then(s => { state = s; levels().forEach(l => l.columns.forEach(c => { if (c.type === 'text' && c.look === 'person') { c.type = 'person'; delete c.look; } })); render(); });
 </script>
 </body>
 </html>

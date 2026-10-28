@@ -113,7 +113,11 @@ function normaliseConfig(raw) {
     const cols = lvl.columns;
     for (const c of cols) {
       const n = (c.key + ' ' + c.label).toLowerCase();
-      if (c.type === 'text' && c.look === undefined) c.look = /status|state|stage|priority|phase/.test(n) ? 'status' : /owner|assignee|person|who|lead|user/.test(n) ? 'person' : 'plain';
+      if (c.type === 'text' && c.look === 'person') { c.type = 'person'; delete c.look; }   // person is a column type now
+      if (c.type === 'text' && c.look === undefined) {
+        if (/owner|assignee|person|who|lead|user/.test(n)) c.type = 'person';
+        else c.look = /status|state|stage|priority|phase/.test(n) ? 'status' : 'plain';
+      }
     }
     if (!Array.isArray(lvl.rules)) {
       lvl.rules = [];

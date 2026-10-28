@@ -52,8 +52,7 @@
         {
           "key": "owner",
           "label": "Owner",
-          "type": "text",
-          "look": "person"
+          "type": "person"
         },
         {
           "key": "due",
