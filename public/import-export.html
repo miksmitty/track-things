@@ -67,16 +67,19 @@
 <body>
 <nav>
   <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div><span>Track Things</span></div>
+  <div class="navlabel">Projects</div>
+  <div id="projectList"></div>
+  <button class="navitem" id="newProjectBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project</button>
   <div class="navlabel">Workspace</div>
-  <a class="navitem" href="/"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Grid</a>
-  <a class="navitem active" href="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
+  <a class="navitem" href="/" data-page="/"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Grid</a>
+  <a class="navitem active" href="/import-export.html" data-page="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
   <div class="spacer"></div>
   <button class="navitem" id="themeBtn"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Toggle theme</button>
   <div class="status"><span class="dot" id="dot"></span><span id="dotText">Ready</span></div>
 </nav>
 <div class="shell">
   <header>
-    <div class="hgroup"><div class="eyebrow">Data</div><h1>Import / Export</h1></div>
+    <div class="hgroup"><div class="eyebrow" id="projEyebrow">Data</div><h1>Import / Export</h1></div>
   </header>
   <main>
     <div class="grid2">
@@ -130,7 +133,7 @@
 
     <section class="card">
       <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Snapshots</h2>
-      <p class="sub">Automatic copies taken before each import or restore, kept on this computer in <code>data/snapshots</code>. The newest thirty are kept.</p>
+      <p class="sub">Automatic copies taken before each import or restore, kept on this computer in the project's folder under <code>data/projects</code>. The newest thirty are kept.</p>
       <div class="actions" style="margin:0 0 12px"><button id="snapBtn">Take a snapshot now</button></div>
       <div class="list" id="snapList"><span class="muted">No snapshots yet.</span></div>
     </section>
@@ -138,6 +141,7 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/projects.js"></script>
 <script>
 // ---------- shared helpers ----------
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); kids.forEach(k => e.append(k)); return e; };
@@ -186,7 +190,7 @@ const fmtTime = iso => new Date(iso).toLocaleString();
 
 async function putState(next, snapshotReason) {
   setStatus('Saving…', true);
-  const r = await fetch('/api/state?snapshot=' + encodeURIComponent(snapshotReason), { method: 'PUT', body: JSON.stringify(next) });
+  const r = await fetch(TT.api('/api/state?snapshot=' + encodeURIComponent(snapshotReason)), { method: 'PUT', body: JSON.stringify(next) });
   if (!r.ok) { setStatus('Save failed'); throw new Error(await r.text()); }
   state = await r.json();
   setStatus('Saved');
@@ -201,12 +205,12 @@ function renderExports() {
   const total = levels().map((_, i) => countLevel(state.rows, i));
   list.append(el('div', { className: 'row' },
     el('span', { className: 'name' }, 'Full backup ', el('small', { textContent: '· JSON · ' + total.reduce((a, b) => a + b, 0) + ' records across ' + levels().length + (levels().length === 1 ? ' level' : ' levels') })),
-    el('a', { href: '/api/backup', className: 'primary' }, el('button', { className: 'primary', textContent: 'Download' }))));
+    el('a', { href: TT.api('/api/backup'), className: 'primary' }, el('button', { className: 'primary', textContent: 'Download' }))));
   levels().forEach((lvl, i) => {
     const file = 'level' + (i + 1) + '.csv';
     list.append(el('div', { className: 'row' },
       el('span', { className: 'name' }, levelTitle(i) + ' ', el('small', { textContent: '· CSV · ' + total[i] + ' records · id' + (i ? ', parent_id' : '') + (lvl.columns.length ? ', ' + lvl.columns.map(c => c.key).join(', ') : '') })),
-      el('a', { href: '/data/' + file, download: (lvl.title || file).replace(/[^\w-]+/g, '_').toLowerCase() + '.csv' }, el('button', { textContent: 'Download' }))));
+      el('a', { href: TT.api('/data/' + file), download: (lvl.title || file).replace(/[^\w-]+/g, '_').toLowerCase() + '.csv' }, el('button', { textContent: 'Download' }))));
   });
 }
 
@@ -568,7 +572,7 @@ $('applyBtn').onclick = async () => {
 // ---------- snapshots ----------
 async function loadSnapshots() {
   const list = $('snapList');
-  const snaps = await fetch('/api/snapshots').then(r => r.json());
+  const snaps = await fetch(TT.api('/api/snapshots')).then(r => r.json());
   list.replaceChildren();
   if (!snaps.length) return list.append(el('span', { className: 'muted', textContent: 'No snapshots yet.' }));
   snaps.forEach(sn => {
@@ -576,22 +580,23 @@ async function loadSnapshots() {
     const restore = el('button', { textContent: 'Restore' });
     restore.onclick = async () => {
       if (!await ask('Restore the snapshot from ' + fmtTime(sn.time) + '? Current data is snapshotted first.', 'Restore')) return;
-      const data = await fetch('/api/snapshots/' + encodeURIComponent(sn.name)).then(r => r.json());
+      const data = await fetch(TT.api('/api/snapshots/' + encodeURIComponent(sn.name))).then(r => r.json());
       try { await putState({ config: data.config, rows: data.rows }, 'before-restore'); toast('Snapshot restored.'); } catch (e) { toast('Restore failed: ' + e.message, true); }
     };
     const del = el('button', { className: 'ghost', textContent: 'Delete' });
-    del.onclick = async () => { if (!await ask('Delete this snapshot?', 'Delete')) return; await fetch('/api/snapshots/' + encodeURIComponent(sn.name), { method: 'DELETE' }); loadSnapshots(); };
+    del.onclick = async () => { if (!await ask('Delete this snapshot?', 'Delete')) return; await fetch(TT.api('/api/snapshots/' + encodeURIComponent(sn.name)), { method: 'DELETE' }); loadSnapshots(); };
     list.append(el('div', { className: 'row' },
       el('span', { className: 'name' }, fmtTime(sn.time) + ' ', el('small', { textContent: '· ' + reason + ' · ' + fmtBytes(sn.size) })),
-      el('a', { href: '/api/snapshots/' + encodeURIComponent(sn.name) + '?download', download: sn.name }, el('button', { className: 'ghost', textContent: 'Download' })),
+      el('a', { href: TT.api('/api/snapshots/' + encodeURIComponent(sn.name) + '?download'), download: sn.name }, el('button', { className: 'ghost', textContent: 'Download' })),
       restore, del));
   });
 }
-$('snapBtn').onclick = async () => { await fetch('/api/snapshots?reason=manual', { method: 'POST' }); toast('Snapshot taken.'); loadSnapshots(); };
+$('snapBtn').onclick = async () => { await fetch(TT.api('/api/snapshots?reason=manual'), { method: 'POST' }); toast('Snapshot taken.'); loadSnapshots(); };
 
 // ---------- boot ----------
-fetch('/api/state').then(r => r.json()).then(s => {
+TT.ready.then(() => fetch(TT.api('/api/state'))).then(r => r.json()).then(s => {
   state = s;
+  $('projEyebrow').textContent = state.config.title || 'Data';
   renderExports();
   const lv = $('level');
   levels().forEach((l, i) => lv.append(el('option', { value: i, textContent: levelTitle(i) + (i ? ' (level ' + (i + 1) + ')' : '') })));

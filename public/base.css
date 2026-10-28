@@ -135,3 +135,11 @@
     main { padding:16px 18px 30px; }
     header h1 { font-size:24px; }
   }
+
+  /* ---------- project list (sidebar) ---------- */
+  #projectList { display:flex; flex-direction:column; gap:2px; max-height:38vh; overflow-y:auto; }
+  .navitem.project .pname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navitem.project .pcount { font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--faint); background:var(--gray-soft); padding:1px 7px; border-radius:999px; }
+  .navitem.project.active .pcount { color:var(--accent-ink); background:var(--accent-soft); }
+  button.danger { color:var(--red); border-color:transparent; background:transparent; margin-right:auto; }
+  button.danger:hover { background:var(--red-soft); border-color:transparent; color:var(--red); }

@@ -261,22 +261,26 @@
 <body>
 <nav>
   <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div><span>Track Things</span></div>
+  <div class="navlabel">Projects</div>
+  <div id="projectList"></div>
+  <button class="navitem" id="newProjectBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project</button>
   <div class="navlabel">Workspace</div>
   <button class="navitem active"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Grid</button>
   <button class="navitem" id="cfgBtn"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="15" r="3"/></svg>Configure columns</button>
-  <a class="navitem" href="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
+  <a class="navitem" href="/import-export.html" data-page="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
   <div class="spacer"></div>
   <button class="navitem" id="themeBtn"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Toggle theme</button>
   <div class="status"><span class="dot" id="dot"></span><span id="dotText">All changes saved</span></div>
 </nav>
 <div class="shell">
   <header>
-    <div class="hgroup"><div class="eyebrow">Tracker</div><h1 id="title"></h1></div>
+    <div class="hgroup"><div class="eyebrow">Project</div><h1 id="title"></h1></div>
     <button class="primary" id="newBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New row</button>
   </header>
   <main id="main"></main>
 </div>
 <dialog id="dlg"></dialog>
+<script src="/projects.js"></script>
 <script>
 const TYPES = ['text', 'number', 'date', 'checkbox', 'choice'];
 const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice' };
@@ -353,7 +357,7 @@ const dot = document.getElementById('dot'), dotText = document.getElementById('d
 function save() {
   clearTimeout(saveTimer);
   dot.classList.add('saving'); dotText.textContent = 'Saving…';
-  saveTimer = setTimeout(() => fetch('/api/state', { method: 'PUT', body: JSON.stringify(state) })
+  saveTimer = setTimeout(() => fetch(TT.api('/api/state'), { method: 'PUT', body: JSON.stringify(state) })
     .then(() => { dot.classList.remove('saving'); dotText.textContent = 'All changes saved'; })
     .catch(() => { dotText.textContent = 'Save failed'; }), 250);
   renderKpis();
@@ -556,14 +560,14 @@ function aggregate(c, list) {
   return fmtNum({ sum, avg: sum / nums.length, min: Math.min(...nums), max: Math.max(...nums) }[c.agg]);
 }
 
-// ---- column widths (remembered per level in this browser) ----
+// ---- column widths (remembered per project and level in this browser) ----
 const widths = {};
 const widthsFor = i => {
-  if (!widths[i]) { try { widths[i] = JSON.parse(localStorage.getItem('tt-w-' + i)) || {}; } catch { widths[i] = {}; } }
+  if (!widths[i]) { try { widths[i] = JSON.parse(localStorage.getItem('tt-w-' + TT.project + '-' + i)) || {}; } catch { widths[i] = {}; } }
   return widths[i];
 };
 const saveWidths = () => {
-  try { for (const l of Object.keys(widths)) localStorage.setItem('tt-w-' + l, JSON.stringify(widths[l])); } catch {}
+  try { for (const l of Object.keys(widths)) localStorage.setItem('tt-w-' + TT.project + '-' + l, JSON.stringify(widths[l])); } catch {}
 };
 const defaultWidth = c => ({ number: 80, date: 140, checkbox: 60, choice: 130 }[c.type] || 150);
 
@@ -1076,7 +1080,7 @@ function openConfig() {
   const draft = JSON.parse(JSON.stringify(state.config));
   const form = el('form', { method: 'dialog' });
   const titleIn = el('input', { value: draft.title || '' });
-  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the tracker and shape its columns. Every record has an ID; each nesting level joins to its parent by that ID.' }));
+  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the project and shape its columns. Every record has an ID; each nesting level joins to its parent by that ID.' }));
   form.append(el('h3', { textContent: 'Title' }), el('div', { className: 'crow' }, titleIn));
 
   // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
@@ -1258,7 +1262,8 @@ function openConfig() {
   form.append(levelsBox);
   const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: () => dlg.close() });
   const ok = el('button', { className: 'primary', textContent: 'Save', type: 'submit' });
-  form.append(el('div', { className: 'dlgbtns' }, cancel, ok));
+  const delProject = el('button', { type: 'button', className: 'danger', textContent: 'Delete project…', onclick: () => { dlg.close(); TT.deleteProject(); } });
+  form.append(el('div', { className: 'dlgbtns' }, delProject, cancel, ok));
   form.onsubmit = () => {
     const finish = list => {
       const used = new Set();
@@ -1304,6 +1309,7 @@ function openConfig() {
       newLevels.forEach((lvl, d) => flattenLevel(state.rows, d).forEach(r => lvl.columns.forEach(c => { if (isPersonCol(c) && r[c.key] != null) r[c.key] = fix(r[c.key]); })));
     }
     state.config = { title: titleIn.value.trim() || 'Track Things', people: newPeople, levels: newLevels };
+    TT.setName(state.config.title);
     save(); render();
   };
   dlg.className = '';
@@ -1311,7 +1317,7 @@ function openConfig() {
   dlg.showModal();
 }
 
-fetch('/api/state').then(r => r.json()).then(s => { state = s; render(); });
+TT.ready.then(() => fetch(TT.api('/api/state'))).then(r => r.json()).then(s => { state = s; render(); });
 </script>
 </body>
 </html>
