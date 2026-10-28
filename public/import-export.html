@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/base.css">
+<script src="/shell.js" defer></script>
 <style>
   main { display:flex; flex-direction:column; gap:18px; }
   main > * { flex:none; }
@@ -160,7 +161,7 @@ function ask(message, okLabel = 'OK') {
 
 const $ = id => document.getElementById(id);
 const isMulti = c => c.type === 'choice' && !!c.multi;
-const uid = () => Math.random().toString(36).slice(2, 10);
+const maxId = rows => (rows || []).reduce((m, r) => Math.max(m, /^\d+$/.test(r.id) ? Number(r.id) : 0, maxId(r.children)), 0);   // ids are integers, one sequence across every level
 let toastTimer;
 function toast(msg, bad) {
   const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); t.classList.add('on');
@@ -531,7 +532,7 @@ $('applyBtn').onclick = async () => {
     ex.clear();
   }
   const hasKids = li + 1 < next.config.levels.length;
-  let added = 0, updated = 0;
+  let added = 0, updated = 0, seq = maxId(next.rows);
   for (const i of live) {
     const target = li === 0 ? next.rows : par.get(i.parentId).children || (par.get(i.parentId).children = []);
     const cur = mode === 'upsert' && i.id ? ex.get(i.id) : null;
@@ -542,7 +543,7 @@ $('applyBtn').onclick = async () => {
       }
       updated++;
     } else {
-      const rec = { id: i.id && mode !== 'append' && !ex.has(i.id) ? i.id : uid() };
+      const rec = { id: /^\d+$/.test(i.id || '') && mode !== 'append' && !ex.has(i.id) ? String(Number(i.id)) : String(++seq) };
       next.config.levels[li].columns.forEach(c => (rec[c.key] = c.type === 'checkbox' ? false : isMulti(c) ? [] : ''));
       mappedCols.forEach(c => (rec[c.key] = i.rec[c.key]));
       if (hasKids) rec.children = [];

@@ -44,6 +44,14 @@
 
   /* ---------- sidebar ---------- */
   nav { width:236px; flex:none; background:var(--panel); backdrop-filter:blur(24px) saturate(1.4); -webkit-backdrop-filter:blur(24px) saturate(1.4); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:22px 14px; gap:4px; position:sticky; top:0; height:100vh; }
+  .navhide { position:absolute; top:10px; right:10px; width:26px; height:26px; padding:0; border:none; background:none; color:var(--faint); border-radius:8px; display:grid; place-items:center; opacity:0; transition:.15s; }
+  nav:hover .navhide { opacity:1; }
+  .navhide:hover { background:var(--hover); color:var(--text); }
+  .navhide svg, .navshow svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .navshow { position:fixed; left:0; top:14px; z-index:40; width:26px; height:34px; padding:0; border:1px solid var(--line-strong); border-left:none; border-radius:0 10px 10px 0; background:var(--panel-solid); color:var(--muted); box-shadow:var(--shadow); display:none; place-items:center; }
+  .navshow:hover { color:var(--accent-ink); border-color:var(--accent); }
+  html.navhidden nav { display:none; }
+  html.navhidden .navshow { display:grid; }
   .brand { display:flex; align-items:center; gap:12px; font-weight:800; font-size:16px; letter-spacing:-.02em; padding:0 8px 22px; }
   .logo { width:36px; height:36px; border-radius:11px; background:linear-gradient(135deg,var(--accent),var(--accent-2) 60%,var(--accent-3)); color:#fff; display:grid; place-items:center; box-shadow:var(--glow); position:relative; overflow:hidden; }
   .logo::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.35),transparent 55%); }

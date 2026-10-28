@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/base.css">
+<script src="/shell.js" defer></script>
 <style>
   /* ---------- card / toolbar ---------- */
   .toolbar { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
@@ -39,6 +40,20 @@
   body.resizing { cursor:col-resize; user-select:none; }
   th.tog, td.tog { width:34px; text-align:center; }
   th.act, td.act { width:30px; text-align:center; }
+  th.sel, td.sel { width:30px; text-align:center; }
+  th.sel { background:var(--head); position:sticky; top:0; z-index:2; }
+  tbody > tr.selected > td:not(.subcell) { background:var(--accent-soft); }
+  /* row multi-select bar */
+  .selbar { display:none; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--accent-ink); }
+  .selbar.on { display:flex; }
+  .selbar button { padding:4px 10px; font-size:12px; }
+  .selbar button.danger { border-color:var(--red); color:var(--red); }
+  .selbar button.danger:hover { background:var(--red); color:#fff; }
+  /* spreadsheet-style fill handle on the active cell: drag it down to copy the value */
+  td.active { position:relative; box-shadow:inset 0 0 0 2px var(--accent); }
+  td.active::after { content:""; position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; background:var(--accent); border:1.5px solid var(--panel-solid); border-radius:2px; cursor:crosshair; z-index:3; }
+  td.fillrange { box-shadow:inset 0 0 0 1.5px var(--accent); background:var(--accent-soft) !important; }
+  body.filling, body.filling * { cursor:crosshair !important; user-select:none; }
   tbody > tr { transition:background .12s; }
   tbody > tr:hover > td:not(.subcell) { background:var(--hover); }
   tr.done > td:not(.subcell) > input:not([type=checkbox]) { color:var(--faint); }
@@ -292,7 +307,8 @@ const levelTitle = i => (levels()[i] && levels()[i].title) || (i ? 'Level ' + (i
 const flattenLevel = (rows, depth) => depth === 0 ? rows : rows.flatMap(r => flattenLevel(r.children || [], depth - 1));
 let saveTimer;
 
-const uid = () => Math.random().toString(36).slice(2, 10);
+const maxId = rows => (rows || []).reduce((m, r) => Math.max(m, /^\d+$/.test(r.id) ? Number(r.id) : 0, maxId(r.children)), 0);
+const uid = () => String(maxId(state.rows) + 1);   // ids are integers, one sequence across every level
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
   kids.forEach(k => e.append(k));
@@ -635,10 +651,10 @@ function makeGrid(level, rows, ui, opts) {
   const thead = el('thead'), tbody = el('tbody');
   const tfoot = el('tfoot');
   table.append(colgroup, thead, tbody, tfoot);
-  const ID_W = 84;
-  const TOG_W = 34, ACT_W = 30, NOTE_W = 30;
-  const fixedCols = (opts.subGrid ? TOG_W : 0) + ID_W + NOTE_W + ACT_W;
+  const TOG_W = 34, ACT_W = 30, NOTE_W = 30, SEL_W = 30;
+  const fixedCols = (opts.subGrid ? TOG_W : 0) + SEL_W + NOTE_W + ACT_W;
   const span = cols.length + (opts.subGrid ? 4 : 3);
+  ui.sel = ui.sel || new Set();   // ids of rows ticked for a bulk action
   const colEls = {};
   const applyWidths = () => {
     table.style.width = fixedCols + cols.reduce((n, c) => n + colW(c), 0) + 'px';
@@ -646,7 +662,7 @@ function makeGrid(level, rows, ui, opts) {
   };
 
   if (opts.subGrid) colgroup.append(el('col', { style: 'width:' + TOG_W + 'px' }));
-  colgroup.append(el('col', { style: 'width:' + ID_W + 'px' }));
+  colgroup.append(el('col', { style: 'width:' + SEL_W + 'px' }));
   cols.forEach(c => colgroup.append((colEls[c.key] = el('col'))));
   colgroup.append(el('col', { style: 'width:' + NOTE_W + 'px' }));
   colgroup.append(el('col', { style: 'width:' + ACT_W + 'px' }));
@@ -654,7 +670,8 @@ function makeGrid(level, rows, ui, opts) {
   const headRow = el('tr');
   const redraws = [];
   if (opts.subGrid) headRow.append(el('th', { className: 'tog' }));
-  headRow.append(el('th', { className: 'idh', title: 'Primary key. Sub records join to it by parent_id.' }, el('span', { className: 'lab', textContent: 'ID' })));
+  const allCb = el('input', { type: 'checkbox', title: 'Select all visible rows' });
+  headRow.append(el('th', { className: 'sel' }, allCb));
   cols.forEach(c => {
     const th = el('th', { className: 'h' });
     const lab = el('span', { className: 'lab' });
@@ -694,6 +711,20 @@ function makeGrid(level, rows, ui, opts) {
 
   const refresh = () => { redraws.forEach(f => f()); body(); };
 
+  const selbar = el('div', { className: 'selbar' });
+  const selCount = el('span');
+  const deleteSelected = async () => {
+    const n = ui.sel.size;
+    if (!n || !await ask('Delete ' + n + ' selected ' + (n === 1 ? 'row' : 'rows') + '?', 'Delete')) return;
+    for (let i = rows.length - 1; i >= 0; i--) if (ui.sel.has(rows[i].id)) rows.splice(i, 1);
+    ui.sel.clear(); save();
+    opts.onStructure ? opts.onStructure() : body();
+  };
+  selbar.append(selCount,
+    el('button', { type: 'button', className: 'danger', textContent: 'Delete selected', onclick: deleteSelected }),
+    el('button', { type: 'button', className: 'ghost', textContent: 'Clear', onclick: () => { ui.sel.clear(); body(); } }));
+  let lastSel = null;   // id of the last row ticked, for shift-click ranges
+
   function drawChips() {
     chips.replaceChildren();
     cols.forEach(c => {
@@ -725,6 +756,14 @@ function makeGrid(level, rows, ui, opts) {
       tfoot.append(fr);
     }
     countEl.textContent = list.length === rows.length ? rows.length + ' rows' : list.length + ' of ' + rows.length + ' rows';
+    const ids = new Set(rows.map(r => r.id));
+    [...ui.sel].forEach(id => { if (!ids.has(id)) ui.sel.delete(id); });
+    const visibleSel = list.filter(r => ui.sel.has(r.id)).length;
+    allCb.checked = list.length > 0 && visibleSel === list.length;
+    allCb.indeterminate = visibleSel > 0 && visibleSel < list.length;
+    allCb.onchange = () => { list.forEach(r => allCb.checked ? ui.sel.add(r.id) : ui.sel.delete(r.id)); body(); };
+    selCount.textContent = ui.sel.size + ' selected';
+    selbar.classList.toggle('on', ui.sel.size > 0);
     if (!list.length) {
       const art = el('div', { className: 'art' }, svg(rows.length ? 'M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z' : 'M12 5v14M5 12h14'));
       tbody.append(el('tr', {}, el('td', { colSpan: span, className: 'empty' }, art,
@@ -749,10 +788,22 @@ function makeGrid(level, rows, ui, opts) {
         if (n) tg.append(el('span', { className: 'n', textContent: n }));
         tr.append(el('td', { className: 'tog' }, tg));
       }
-      tr.append(el('td', { className: 'idcell', textContent: row.id, title: 'Record ID (click to copy)',
-        onclick: () => { try { navigator.clipboard.writeText(row.id); } catch {} } }));
+      if (ui.sel.has(row.id)) tr.classList.add('selected');
+      const scb = el('input', { type: 'checkbox', checked: ui.sel.has(row.id), title: 'Select row (shift-click for a range)' });
+      scb.onclick = e => {
+        const on = scb.checked;
+        if (e.shiftKey && lastSel) {
+          const a = list.findIndex(r => r.id === lastSel), b = list.indexOf(row);
+          if (a >= 0 && b >= 0) list.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(r => on ? ui.sel.add(r.id) : ui.sel.delete(r.id));
+        }
+        on ? ui.sel.add(row.id) : ui.sel.delete(row.id);
+        lastSel = row.id;
+        body();
+      };
+      tr.append(el('td', { className: 'sel' }, scb));
       cols.forEach(c => {
         const td = cell(row, c, cols);
+        td._row = row; td._col = c;
         if (c === firstText) td.classList.add('strike');
         fired.filter(r => r.effect.apply === c.key).forEach(r => {   // badge / tint on the cell the rule points at
           td.classList.add('ruled');
@@ -775,7 +826,6 @@ function makeGrid(level, rows, ui, opts) {
         const sui = uiSub[row.id] || (uiSub[row.id] = { sort: null, vals: {} });
         const sc = levels()[level + 1].columns;
         const title = el('div', { className: 'subtitle', textContent: levelTitle(level + 1) });
-        title.append(el('span', { className: 'lvl', textContent: 'parent ' + row.id }));
         if (hasDoneRule(level + 1) && row.children.length) {
           const d = row.children.filter(ch => isDoneAt(level + 1, ch)).length;
           const b = el('span', { className: 'bar2' }, el('i', { style: 'width:' + Math.round(100 * d / row.children.length) + '%' }));
@@ -868,6 +918,64 @@ function makeGrid(level, rows, ui, opts) {
     return td;
   }
 
+  // ---- active cell + fill handle: click a cell, then drag the square in its corner down the column to copy its value ----
+  let activeTd = null;
+  const setActive = td => {
+    if (td === activeTd) return;
+    if (activeTd) activeTd.classList.remove('active');
+    activeTd = td && td._col ? td : null;
+    if (activeTd) activeTd.classList.add('active');
+  };
+  const ownTd = t => { const td = t && t.closest && t.closest('td'); return td && td._col && td.closest('tbody') === tbody ? td : null; };
+  tbody.addEventListener('focusin', e => setActive(ownTd(e.target)));
+  tbody.addEventListener('mousedown', e => {
+    const td = ownTd(e.target);
+    if (!td) return;
+    if (td === activeTd) {
+      const r = td.getBoundingClientRect();
+      if (r.right - e.clientX <= 12 && r.bottom - e.clientY <= 12) { e.preventDefault(); startFill(td); return; }
+    }
+    setActive(td);
+  });
+  const cloneVal = v => Array.isArray(v) ? v.slice() : v;
+  function startFill(src) {
+    const c = src._col;
+    const column = [...tbody.querySelectorAll('td')].filter(td => td._col === c && td.closest('tbody') === tbody);
+    const i0 = column.indexOf(src);
+    let range = [];
+    const paint = i1 => {
+      range.forEach(td => td.classList.remove('fillrange'));
+      range = i1 == null ? [] : column.slice(Math.min(i0, i1), Math.max(i0, i1) + 1).filter(td => td !== src);
+      range.forEach(td => td.classList.add('fillrange'));
+    };
+    const move = ev => {
+      const over = document.elementFromPoint(ev.clientX, ev.clientY);
+      const td = over && over.closest && over.closest('td');
+      const i1 = td ? column.indexOf(td) : -1;
+      if (i1 >= 0) paint(i1);
+      else {   // pointer outside the column: snap to the nearest row vertically
+        const y = ev.clientY;
+        let best = -1, dist = Infinity;
+        column.forEach((t, i) => { const r = t.getBoundingClientRect(); const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0; if (d < dist) { dist = d; best = i; } });
+        paint(best);
+      }
+    };
+    const up = () => {
+      removeEventListener('mousemove', move); removeEventListener('mouseup', up);
+      document.body.classList.remove('filling');
+      if (range.length) {
+        const v = src._row[c.key];
+        range.forEach(td => { td._row[c.key] = cloneVal(v); });
+        save();
+      }
+      paint(null);
+      body();
+    };
+    document.body.classList.add('filling');
+    addEventListener('mousemove', move);
+    addEventListener('mouseup', up);
+  }
+
   body();
   const addRow = () => {
     const r = { id: uid() };
@@ -881,12 +989,12 @@ function makeGrid(level, rows, ui, opts) {
     const search = el('input', { type: 'search', placeholder: 'Search all columns…', value: ui.search || '' });
     search.oninput = () => { ui.search = search.value; body(); };
     const sbox = el('div', { className: 'search' }, svg('M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z'), search);
-    wrap.append(el('div', { className: 'toolbar' }, sbox, chips, countEl));
+    wrap.append(el('div', { className: 'toolbar' }, sbox, chips, countEl, selbar));
     window.addMainRow = addRow;
     wrap.append(el('div', { className: 'scroll' }, table));
   } else {
     wrap.append(el('div', { className: 'scroll' }, table));
-    wrap.append(el('div', { className: 'bar' }, el('button', { className: 'ghost', textContent: '+ Add row', onclick: addRow }), countEl));
+    wrap.append(el('div', { className: 'bar' }, el('button', { className: 'ghost', textContent: '+ Add row', onclick: addRow }), countEl, selbar));
   }
   return wrap;
 }

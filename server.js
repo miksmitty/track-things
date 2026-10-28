@@ -47,7 +47,12 @@ const MINUTES_DIR = path.join(DATA_DIR, 'minutes');  // one <record id>.html per
 const SNAP_DIR = path.join(DATA_DIR, 'snapshots');   // automatic safety copies taken before an import or restore
 const MAX_SNAPSHOTS = 30;
 
-const newId = () => crypto.randomBytes(5).toString('hex');
+// Record ids are plain integers, allocated from a counter seeded with the highest id on disk.
+let idCounter = 0;
+const isIntId = id => /^[1-9]\d*$/.test(String(id ?? ''));
+const seedIds = ids => { for (const id of ids) if (isIntId(id)) idCounter = Math.max(idCounter, Number(id)); };
+const newId = () => String(++idCounter);
+const allIds = rows => (rows || []).flatMap(r => [r.id, ...allIds(r.children)]);
 
 function toCsv(header, records) {
   const esc = v => {
@@ -79,7 +84,7 @@ function parseCsv(text) {
 }
 
 function typed(rec, cols) {
-  const out = { id: rec.id || newId() };
+  const out = { id: rec.id || 'tmp-' + crypto.randomBytes(4).toString('hex') };   // ids are only (re)numbered on save, where parent links are nested and so survive
   for (const c of cols) {
     const v = rec[c.key] ?? '';
     out[c.key] = c.type === 'checkbox' ? v === 'true'
@@ -139,6 +144,7 @@ function loadState() {
   const flat = config.levels.map((lvl, i) => {
     let recs = readCsv(levelFile(i));
     if (!recs.length && !fs.existsSync(levelFile(i))) recs = readCsv(i === 0 ? LEGACY_MAIN : i === 1 ? LEGACY_SUB : '');
+    seedIds(recs.map(r => r.id));
     return recs.map(r => ({ ...typed(r, lvl.columns), parent_id: r.parent_id || '' }));
   });
   const minutes = loadMinutes();
@@ -202,10 +208,12 @@ function saveState(state) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const flat = config.levels.map(() => []);
   const seen = new Set();
+  seedIds(allIds(state.rows));
   const walk = (rows, level, parentId) => {
     if (level >= config.levels.length) return;
     for (const r of rows || []) {
-      if (!r.id || seen.has(r.id)) r.id = newId();   // every record gets a unique primary key
+      if (!isIntId(r.id) || seen.has(String(r.id))) r.id = newId();   // every record gets a unique integer primary key
+      r.id = String(Number(r.id));
       seen.add(r.id);
       flat[level].push({ ...r, parent_id: parentId });
       walk(r.children, level + 1, r.id);
@@ -308,3 +316,6 @@ http.createServer((req, res) => {
     res.end(buf);
   });
 }).listen(PORT, () => console.log(`track-things on http://localhost:${PORT}`));
+
+// Records saved before ids became integers are renumbered once, on startup.
+try { const st = loadState(); if (allIds(st.rows).some(id => !isIntId(id))) saveState(st); } catch (e) { console.error('id migration failed', e); }
