@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import / Export · Track Things</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/base.css">
+<style>
+  main { display:flex; flex-direction:column; gap:18px; }
+  main > * { flex:none; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px; }
+  .card { padding:20px 22px; }
+  .card h2 { margin:0 0 4px; font-size:16px; letter-spacing:-.01em; display:flex; align-items:center; gap:10px; }
+  .card h2 svg { width:18px; height:18px; stroke:var(--accent-ink); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .card p.sub { margin:0 0 14px; color:var(--muted); font-size:13px; }
+  .list { display:flex; flex-direction:column; gap:6px; }
+  .row { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); }
+  .row .name { flex:1; font-weight:600; }
+  .row small { color:var(--muted); font-weight:500; }
+  .row a, .row button { text-decoration:none; }
+  .mono { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; }
+  .drop { display:block; border:2px dashed var(--line-strong); border-radius:14px; padding:26px 18px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; background:var(--bg2); }
+  .drop:hover, .drop.over { border-color:var(--accent); background:var(--accent-soft); color:var(--accent-ink); }
+  .drop b { color:var(--text); display:block; margin-bottom:3px; }
+  .drop input { display:none; }
+  .opts { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin:14px 0; }
+  .opts label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--muted); }
+  select, input[type=text] { font:inherit; padding:7px 10px; border:1px solid var(--line-strong); border-radius:10px; background:var(--bg2); color:inherit; outline:none; }
+  select:focus, input[type=text]:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }
+  .check { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); font-weight:500; }
+  .check input { width:16px; height:16px; margin:0; accent-color:var(--accent); }
+  table.map { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  table.map th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.map td { padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.map td.sample { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
+  .pv { overflow:auto; border:1px solid var(--line); border-radius:12px; margin-top:12px; max-height:360px; }
+  table.pv { border-collapse:collapse; font-size:12px; min-width:100%; }
+  table.pv th { position:sticky; top:0; background:var(--head); backdrop-filter:blur(8px); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:6px 10px; text-align:left; white-space:nowrap; border-bottom:1px solid var(--line); }
+  table.pv td { padding:4px 10px; border-bottom:1px solid var(--line); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  table.pv tr.err td { background:var(--red-soft); }
+  table.pv tr.warn td { background:var(--amber-soft); }
+  table.pv td.st { font-weight:700; font-size:10.5px; letter-spacing:.06em; }
+  .st.add { color:var(--green); } .st.upd { color:var(--blue); } .st.err { color:var(--red); } .st.skip { color:var(--faint); }
+  .summary { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .pill { font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px; background:var(--gray-soft); color:var(--gray); }
+  .pill.green { background:var(--green-soft); color:var(--green); } .pill.blue { background:var(--blue-soft); color:var(--blue); } .pill.red { background:var(--red-soft); color:var(--red); } .pill.amber { background:var(--amber-soft); color:var(--amber); }
+  .issues { margin:10px 0 0; padding:10px 12px; border-radius:10px; background:var(--amber-soft); color:var(--amber); font-size:12.5px; max-height:140px; overflow:auto; }
+  .issues.red { background:var(--red-soft); color:var(--red); }
+  .issues div { padding:1px 0; }
+  .actions { display:flex; gap:10px; margin-top:16px; align-items:center; flex-wrap:wrap; }
+  .actions .note { color:var(--muted); font-size:12.5px; flex:1; }
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--panel-solid); border:1px solid var(--line-strong); border-radius:12px; padding:12px 18px; box-shadow:var(--shadow); font-weight:600; opacity:0; pointer-events:none; transition:.25s; z-index:9; }
+  .toast.on { opacity:1; transform:translateX(-50%) translateY(-6px); }
+  .toast.bad { color:var(--red); }
+  .muted { color:var(--muted); font-size:12.5px; }
+  .hidden { display:none !important; }
+  .steps { counter-reset:s; display:flex; flex-direction:column; gap:16px; }
+  .step { position:relative; padding-left:36px; }
+  .step::before { counter-increment:s; content:counter(s); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; font-size:12px; font-weight:800; display:grid; place-items:center; }
+  .step h3 { margin:2px 0 8px; font-size:13.5px; }
+  .step.off { opacity:.45; pointer-events:none; }
+  code { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; background:var(--gray-soft); padding:1px 6px; border-radius:6px; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div><span>Track Things</span></div>
+  <div class="navlabel">Workspace</div>
+  <a class="navitem" href="/"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Grid</a>
+  <a class="navitem active" href="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
+  <div class="spacer"></div>
+  <button class="navitem" id="themeBtn"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Toggle theme</button>
+  <div class="status"><span class="dot" id="dot"></span><span id="dotText">Ready</span></div>
+</nav>
+<div class="shell">
+  <header>
+    <div class="hgroup"><div class="eyebrow">Data</div><h1>Import / Export</h1></div>
+  </header>
+  <main>
+    <div class="grid2">
+      <section class="card">
+        <h2><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Export</h2>
+        <p class="sub">A backup holds the configuration and every record at every level in one JSON file. CSV exports are one file per level; sub levels carry a <code>parent_id</code> column that joins to the level above.</p>
+        <div class="list" id="exportList"></div>
+      </section>
+      <section class="card">
+        <h2><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Restore a backup</h2>
+        <p class="sub">Load a JSON backup made by this app. It replaces the configuration and all records. A safety snapshot of the current data is taken first.</p>
+        <label class="drop" id="jsonDrop"><input type="file" accept=".json,application/json" id="jsonFile"><b>Choose a backup file</b>or drop it here</label>
+        <div id="jsonInfo"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16"/></svg>Import records from CSV</h2>
+      <p class="sub">Add or update records at one level from a CSV or tab-separated file. Nothing is written until you confirm the preview, and a safety snapshot is taken first.</p>
+      <div class="steps">
+        <div class="step">
+          <h3>Pick a file</h3>
+          <label class="drop" id="csvDrop"><input type="file" accept=".csv,.tsv,.txt,text/csv" id="csvFile"><b>Choose a CSV file</b>or drop it here · comma, semicolon or tab separated · quoted values and multi-line cells are fine</label>
+          <div class="opts hidden" id="csvOpts">
+            <label>Delimiter<select id="delim"><option value="auto">Auto-detect</option><option value=",">Comma</option><option value=";">Semicolon</option><option value="&#9;">Tab</option><option value="|">Pipe</option></select></label>
+            <label>First row<select id="header"><option value="1">Column names</option><option value="0">Data (no header)</option></select></label>
+            <label>Import into<select id="level"></select></label>
+            <label>Mode<select id="mode"><option value="upsert">Add new, update matching IDs</option><option value="append">Add all as new records</option><option value="replace">Replace every record at this level</option></select></label>
+            <label>Dates in file<select id="dateFmt"><option value="auto">Auto (ISO or day/month/year)</option><option value="dmy">Day/Month/Year</option><option value="mdy">Month/Day/Year</option><option value="ymd">Year-Month-Day</option></select></label>
+          </div>
+        </div>
+        <div class="step off" id="stepMap">
+          <h3>Match columns</h3>
+          <div class="muted">Each file column is matched to a field by name. Change any match, or skip a column. A sub level needs a <b>Parent ID</b> so each record joins to its parent.</div>
+          <table class="map"><thead><tr><th>File column</th><th>Sample</th><th>Goes to</th></tr></thead><tbody id="mapBody"></tbody></table>
+          <label class="check" style="margin-top:10px"><input type="checkbox" id="addOptions" checked>Add unknown values to choice columns' option lists</label>
+          <label class="check" style="margin-top:6px"><input type="checkbox" id="skipBad" checked>Skip rows with errors instead of stopping the import</label>
+        </div>
+        <div class="step off" id="stepPreview">
+          <h3>Preview and confirm</h3>
+          <div class="summary" id="summary"></div>
+          <div id="issues"></div>
+          <div class="pv"><table class="pv" id="pvTable"></table></div>
+          <div class="actions">
+            <span class="note" id="applyNote"></span>
+            <button id="applyBtn" class="primary">Import</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Snapshots</h2>
+      <p class="sub">Automatic copies taken before each import or restore, kept on this computer in <code>data/snapshots</code>. The newest thirty are kept.</p>
+      <div class="actions" style="margin:0 0 12px"><button id="snapBtn">Take a snapshot now</button></div>
+      <div class="list" id="snapList"><span class="muted">No snapshots yet.</span></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- shared helpers ----------
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); kids.forEach(k => e.append(k)); return e; };
+// ---- in-page confirmation (native confirm() is blocked in some embedded browsers and silently returns false) ----
+function ask(message, okLabel = 'OK') {
+  return new Promise(resolve => {
+    const d = el('dialog', { className: 'ask' });
+    const no = el('button', { type: 'button', textContent: 'Cancel' });
+    const yes = el('button', { type: 'button', className: 'primary', textContent: okLabel });
+    d.append(el('p', { textContent: message }), el('div', { className: 'dlgbtns' }, no, yes));
+    let answer = false;
+    yes.onclick = () => { answer = true; d.close(); };
+    no.onclick = () => d.close();
+    d.onclose = () => { d.remove(); resolve(answer); };
+    document.body.append(d);
+    d.showModal();
+    yes.focus();
+  });
+}
+
+const $ = id => document.getElementById(id);
+const isMulti = c => c.type === 'choice' && !!c.multi;
+const uid = () => Math.random().toString(36).slice(2, 10);
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 3500);
+}
+const setStatus = (text, saving) => { $('dot').classList.toggle('saving', !!saving); $('dotText').textContent = text; };
+
+// theme (same key as the grid page)
+try { const t = localStorage.getItem('tt-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+$('themeBtn').onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('tt-theme', next); } catch {}
+};
+
+let state = null;
+const levels = () => state.config.levels;
+const levelTitle = i => levels()[i].title || (i ? 'Level ' + (i + 1) : 'Rows');
+const countLevel = (rows, depth) => depth === 0 ? rows.length : rows.reduce((n, r) => n + countLevel(r.children || [], depth - 1), 0);
+const fmtBytes = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fmtTime = iso => new Date(iso).toLocaleString();
+
+async function putState(next, snapshotReason) {
+  setStatus('Saving…', true);
+  const r = await fetch('/api/state?snapshot=' + encodeURIComponent(snapshotReason), { method: 'PUT', body: JSON.stringify(next) });
+  if (!r.ok) { setStatus('Save failed'); throw new Error(await r.text()); }
+  state = await r.json();
+  setStatus('Saved');
+  renderExports(); loadSnapshots();
+  return state;
+}
+
+// ---------- export ----------
+function renderExports() {
+  const list = $('exportList');
+  list.replaceChildren();
+  const total = levels().map((_, i) => countLevel(state.rows, i));
+  list.append(el('div', { className: 'row' },
+    el('span', { className: 'name' }, 'Full backup ', el('small', { textContent: '· JSON · ' + total.reduce((a, b) => a + b, 0) + ' records across ' + levels().length + (levels().length === 1 ? ' level' : ' levels') })),
+    el('a', { href: '/api/backup', className: 'primary' }, el('button', { className: 'primary', textContent: 'Download' }))));
+  levels().forEach((lvl, i) => {
+    const file = 'level' + (i + 1) + '.csv';
+    list.append(el('div', { className: 'row' },
+      el('span', { className: 'name' }, levelTitle(i) + ' ', el('small', { textContent: '· CSV · ' + total[i] + ' records · id' + (i ? ', parent_id' : '') + (lvl.columns.length ? ', ' + lvl.columns.map(c => c.key).join(', ') : '') })),
+      el('a', { href: '/data/' + file, download: (lvl.title || file).replace(/[^\w-]+/g, '_').toLowerCase() + '.csv' }, el('button', { textContent: 'Download' }))));
+  });
+}
+
+// ---------- restore a JSON backup ----------
+function readFile(file) { return new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsText(file); }); }
+function wireDrop(dropId, inputId, onFile) {
+  const d = $(dropId), inp = $(inputId);
+  inp.onchange = () => inp.files[0] && onFile(inp.files[0]);
+  d.ondragover = e => { e.preventDefault(); d.classList.add('over'); };
+  d.ondragleave = () => d.classList.remove('over');
+  d.ondrop = e => { e.preventDefault(); d.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) onFile(f); };
+}
+wireDrop('jsonDrop', 'jsonFile', async file => {
+  const box = $('jsonInfo');
+  box.replaceChildren();
+  let data;
+  try { data = JSON.parse(await readFile(file)); } catch { return box.append(el('div', { className: 'issues red', textContent: 'That file is not valid JSON.' })); }
+  const problems = validateBackup(data);
+  if (problems.length) return box.append(el('div', { className: 'issues red' }, ...problems.map(p => el('div', { textContent: p }))));
+  const lv = data.config.levels;
+  const counts = lv.map((_, i) => countLevel(data.rows, i));
+  const sum = el('div', { className: 'summary' },
+    el('span', { className: 'pill', textContent: file.name + ' · ' + fmtBytes(file.size) }),
+    ...(data.exportedAt ? [el('span', { className: 'pill', textContent: 'exported ' + fmtTime(data.exportedAt) })] : []),
+    ...lv.map((l, i) => el('span', { className: 'pill blue', textContent: (l.title || 'Level ' + (i + 1)) + ': ' + counts[i] + ' records, ' + (l.columns || []).length + ' columns' })));
+  const cur = levels().map((_, i) => countLevel(state.rows, i)).reduce((a, b) => a + b, 0);
+  const note = el('span', { className: 'note', textContent: 'This replaces the current ' + cur + ' records and the column setup. A snapshot of the current data is taken first.' });
+  const btn = el('button', { className: 'primary', textContent: 'Restore this backup' });
+  btn.onclick = async () => {
+    if (!await ask('Replace all current data with the contents of ' + file.name + '?', 'Replace')) return;
+    btn.disabled = true;
+    try { await putState({ config: data.config, rows: data.rows }, 'before-restore'); toast('Backup restored.'); box.replaceChildren(el('div', { className: 'muted', textContent: 'Restored ' + file.name + '.' })); }
+    catch (e) { toast('Restore failed: ' + e.message, true); btn.disabled = false; }
+  };
+  box.append(sum, el('div', { className: 'actions' }, note, btn));
+});
+function validateBackup(d) {
+  const out = [];
+  if (!d || typeof d !== 'object') return ['Not a backup object.'];
+  if (!d.config || !Array.isArray(d.config.levels) || !d.config.levels.length) out.push('Missing config.levels — this is not a Track Things backup.');
+  if (!Array.isArray(d.rows)) out.push('Missing rows array.');
+  if (out.length) return out;
+  d.config.levels.forEach((l, i) => { if (!Array.isArray(l.columns)) out.push('Level ' + (i + 1) + ' has no columns list.'); });
+  const seen = new Set();
+  const walk = (rows, depth) => rows.forEach(r => {
+    if (!r || typeof r !== 'object') return out.push('A record at level ' + (depth + 1) + ' is not an object.');
+    if (r.id) { if (seen.has(r.id)) out.push('Duplicate id ' + r.id + ' (level ' + (depth + 1) + ').'); seen.add(r.id); }
+    if (r.children) walk(r.children, depth + 1);
+  });
+  walk(d.rows, 0);
+  return out.slice(0, 20);
+}
+
+// ---------- CSV parsing ----------
+function detectDelimiter(text) {
+  const head = text.slice(0, 20000).split(/\r?\n/).slice(0, 10).filter(Boolean);
+  let best = ',', bestScore = -1;
+  for (const d of [',', ';', '\t', '|']) {
+    const counts = head.map(line => countOutsideQuotes(line, d));
+    const min = Math.min(...counts), max = Math.max(...counts);
+    const score = min > 0 && min === max ? min * 10 : min;   // consistent count across lines wins
+    if (score > bestScore) { bestScore = score; best = d; }
+  }
+  return best;
+}
+function countOutsideQuotes(line, d) { let n = 0, q = false; for (const ch of line) { if (ch === '"') q = !q; else if (!q && ch === d) n++; } return n; }
+function parseCsv(text, delim) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);   // UTF-8 BOM (Excel)
+  const rows = []; let row = [], field = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') q = false;
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(field); field = ''; rows.push(row); row = []; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ''));
+}
+
+// ---------- value coercion ----------
+const TRUE = new Set(['true', 'yes', 'y', '1', 'x', '✓', 'done', 'checked', 'on']);
+const FALSE = new Set(['false', 'no', 'n', '0', '', 'off', 'unchecked', '-']);
+const pad = n => String(n).padStart(2, '0');
+function parseDate(s, fmt) {
+  s = s.trim();
+  if (!s) return '';
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/))) return valid(m[1], m[2], m[3]);
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/))) {
+    const y = m[3].length === 2 ? '20' + m[3] : m[3];
+    const a = +m[1], b = +m[2];
+    const mdy = fmt === 'mdy' || (fmt === 'auto' && a <= 12 && b > 12);
+    return mdy ? valid(y, a, b) : valid(y, b, a);
+  }
+  if ((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return valid(m[1], m[2], m[3]);
+  const d = new Date(s);                                     // "12 Mar 2026", "March 12, 2026" …
+  if (!isNaN(d)) return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  return null;
+}
+function valid(y, mo, d) { y = +y; mo = +mo; d = +d; const t = new Date(y, mo - 1, d); return t.getFullYear() === y && t.getMonth() === mo - 1 && t.getDate() === d ? y + '-' + pad(mo) + '-' + pad(d) : null; }
+function parseNumber(s) {
+  s = s.trim(); if (!s) return '';
+  let t = s.replace(/[\s $£€%]/g, '');
+  if (/,\d{1,2}$/.test(t) && !/\./.test(t)) t = t.replace(/\./g, '').replace(',', '.');  // 1.234,56
+  else t = t.replace(/,/g, '');
+  if (/^\(.*\)$/.test(t)) t = '-' + t.slice(1, -1);
+  const n = Number(t);
+  return isFinite(n) && t !== '' ? n : null;
+}
+function coerce(raw, c, opts, warn) {
+  const v = raw == null ? '' : String(raw);
+  if (c.type === 'checkbox') {
+    const k = v.trim().toLowerCase();
+    if (TRUE.has(k)) return true;
+    if (FALSE.has(k)) return false;
+    warn('"' + v + '" is not a yes/no value for ' + c.label);
+    return null;
+  }
+  if (c.type === 'number') { const n = parseNumber(v); if (n === null) warn('"' + v + '" is not a number for ' + c.label); return n; }
+  if (c.type === 'date') { const d = parseDate(v, opts.dateFmt); if (d === null) warn('"' + v + '" is not a date for ' + c.label); return d; }
+  if (c.type === 'choice') {
+    const parts = isMulti(c) ? v.split(/[|;,]/).map(x => x.trim()).filter(Boolean) : [v.trim()].filter(Boolean);
+    const options = c.options || [];
+    const matched = parts.map(p => options.find(o => o.toLowerCase() === p.toLowerCase()) || p);
+    matched.forEach(p => { if (!options.includes(p)) { if (opts.addOptions) opts.newOptions(c, p); else warn('"' + p + '" is not one of the choices for ' + c.label); } });
+    return isMulti(c) ? matched : matched[0] || '';
+  }
+  return v;
+}
+
+// ---------- CSV import wizard ----------
+const imp = { file: null, text: '', rows: [], header: [], mapping: [], plan: null };
+const stepMap = $('stepMap'), stepPreview = $('stepPreview');
+
+wireDrop('csvDrop', 'csvFile', async file => {
+  imp.file = file;
+  imp.text = await readFile(file);
+  $('csvDrop').querySelector('b').textContent = file.name + ' · ' + fmtBytes(file.size);
+  $('csvOpts').classList.remove('hidden');
+  $('delim').value = 'auto';
+  parseAndMap();
+});
+['delim', 'header', 'level'].forEach(id => ($(id).onchange = parseAndMap));
+['mode', 'dateFmt', 'addOptions', 'skipBad'].forEach(id => ($(id).onchange = buildPlan));
+
+function parseAndMap() {
+  if (!imp.text) return;
+  const d = $('delim').value === 'auto' ? detectDelimiter(imp.text) : $('delim').value;
+  const all = parseCsv(imp.text, d);
+  const hasHeader = $('header').value === '1';
+  const width = Math.max(...all.map(r => r.length), 0);
+  imp.header = hasHeader ? all[0].map((h, i) => h.trim() || 'Column ' + (i + 1)) : Array.from({ length: width }, (_, i) => 'Column ' + (i + 1));
+  imp.rows = (hasHeader ? all.slice(1) : all).map(r => Array.from({ length: width }, (_, i) => r[i] ?? ''));
+  autoMap();
+  renderMap();
+  buildPlan();
+}
+
+function targets() {
+  const li = +$('level').value;
+  const t = [{ key: '__skip', label: 'Skip this column' }, { key: 'id', label: 'ID' }];
+  if (li > 0) t.push({ key: 'parent_id', label: 'Parent ID (' + levelTitle(li - 1) + ')' });
+  levels()[li].columns.forEach(c => t.push({ key: c.key, label: c.label + ' · ' + c.type + (isMulti(c) ? ' (multiple)' : '') }));
+  return t;
+}
+const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
+function autoMap() {
+  const li = +$('level').value;
+  const cols = levels()[li].columns;
+  const used = new Set();
+  imp.mapping = imp.header.map(h => {
+    const n = norm(h);
+    let hit = null;
+    if (['id', 'recordid', 'key'].includes(n)) hit = 'id';
+    else if (li > 0 && ['parentid', 'parent', 'parentkey', norm(levelTitle(li - 1)) + 'id', norm(levelTitle(li - 1))].includes(n)) hit = 'parent_id';
+    else { const c = cols.find(c => norm(c.key) === n || norm(c.label) === n); if (c) hit = c.key; }
+    if (!hit || used.has(hit)) return '__skip';
+    used.add(hit);
+    return hit;
+  });
+}
+function renderMap() {
+  const body = $('mapBody');
+  body.replaceChildren();
+  const t = targets();
+  imp.header.forEach((h, i) => {
+    const sel = el('select');
+    t.forEach(o => sel.append(el('option', { value: o.key, textContent: o.label })));
+    sel.value = imp.mapping[i];
+    sel.onchange = () => { imp.mapping[i] = sel.value; buildPlan(); };
+    const sample = imp.rows.slice(0, 3).map(r => r[i]).filter(Boolean).join(' · ');
+    body.append(el('tr', {}, el('td', {}, el('b', { textContent: h })), el('td', { className: 'sample', textContent: sample, title: sample }), el('td', {}, sel)));
+  });
+  stepMap.classList.remove('off');
+}
+
+function buildPlan() {
+  if (!imp.rows.length) { stepPreview.classList.add('off'); return; }
+  const li = +$('level').value;
+  const mode = $('mode').value;
+  const cols = levels()[li].columns;
+  const opts = { dateFmt: $('dateFmt').value, addOptions: $('addOptions').checked, newOptionsMap: new Map() };
+  opts.newOptions = (c, p) => { const s = opts.newOptionsMap.get(c.key) || opts.newOptionsMap.set(c.key, new Set()).get(c.key); s.add(p); };
+  const idIdx = imp.mapping.indexOf('id'), pidIdx = imp.mapping.indexOf('parent_id');
+  const colIdx = cols.map(c => imp.mapping.indexOf(c.key));
+  const mappedCols = cols.filter((c, i) => colIdx[i] >= 0);
+  const problems = [];
+  if (!mappedCols.length) problems.push('No file column is matched to a field yet.');
+  if (li > 0 && pidIdx < 0) problems.push('A sub level needs a Parent ID column so each record can join to its ' + levelTitle(li - 1) + ' record.');
+  if (mode === 'upsert' && idIdx < 0) problems.push('"Update matching IDs" needs an ID column. Choose one, or switch to "Add all as new records".');
+
+  // Existing records at this level, and valid parents (records at the level above).
+  const existing = new Map();
+  const parents = new Map();
+  const walk = (rows, depth, parent) => rows.forEach(r => {
+    if (depth === li) existing.set(r.id, { rec: r, parent });
+    if (depth === li - 1) parents.set(r.id, r);
+    if (r.children) walk(r.children, depth + 1, r);
+  });
+  walk(state.rows, 0, null);
+
+  const seenIds = new Set();
+  const items = imp.rows.map((r, n) => {
+    const errs = [], warns = [];
+    const warn = m => warns.push(m);
+    const rec = {};
+    cols.forEach((c, i) => {
+      if (colIdx[i] < 0) return;
+      const v = coerce(r[colIdx[i]], c, opts, warn);
+      if (v === null) { errs.push(warns.pop()); rec[c.key] = c.type === 'checkbox' ? false : ''; }
+      else rec[c.key] = v;
+    });
+    const id = idIdx >= 0 ? r[idIdx].trim() : '';
+    if (id && seenIds.has(id)) errs.push('ID ' + id + ' appears more than once in the file');
+    if (id) seenIds.add(id);
+    let parentId = null;
+    if (li > 0) {
+      parentId = pidIdx >= 0 ? r[pidIdx].trim() : '';
+      if (!parentId) errs.push('Parent ID is empty');
+      else if (!parents.has(parentId)) errs.push('No ' + levelTitle(li - 1) + ' record has ID ' + parentId);
+    }
+    let action = 'add';
+    if (mode === 'upsert' && id && existing.has(id)) action = 'update';
+    if (mode === 'replace') action = 'add';
+    if (errs.length) action = $('skipBad').checked ? 'skip' : 'error';
+    return { n: n + 2, raw: r, rec, id, parentId, action, errs, warns };
+  });
+  imp.plan = { li, mode, items, problems, opts, mappedCols, existing, parents, idIdx };
+  renderPreview();
+}
+
+function renderPreview() {
+  const { li, mode, items, problems, opts, mappedCols } = imp.plan;
+  stepPreview.classList.remove('off');
+  const adds = items.filter(i => i.action === 'add').length, upds = items.filter(i => i.action === 'update').length;
+  const skips = items.filter(i => i.action === 'skip').length, errors = items.filter(i => i.action === 'error').length;
+  const warns = items.reduce((n, i) => n + i.warns.length, 0);
+  const sum = $('summary');
+  sum.replaceChildren(
+    el('span', { className: 'pill', textContent: items.length + ' rows in file' }),
+    el('span', { className: 'pill green', textContent: adds + ' to add' }),
+    ...(mode === 'upsert' ? [el('span', { className: 'pill blue', textContent: upds + ' to update' })] : []),
+    ...(skips ? [el('span', { className: 'pill amber', textContent: skips + ' skipped (errors)' })] : []),
+    ...(errors ? [el('span', { className: 'pill red', textContent: errors + ' with errors' })] : []),
+    ...(warns ? [el('span', { className: 'pill amber', textContent: warns + ' warnings' })] : []),
+  );
+  if (mode === 'replace') {
+    const cur = countLevel(state.rows, li);
+    sum.append(el('span', { className: 'pill red', textContent: 'removes the current ' + cur + ' ' + levelTitle(li) + (li + 1 < levels().length ? ' and everything nested under them' : '') }));
+  }
+  const newOpts = [...opts.newOptionsMap].map(([k, s]) => (levels()[li].columns.find(c => c.key === k) || {}).label + ': ' + [...s].join(', '));
+  if (newOpts.length) sum.append(el('span', { className: 'pill blue', textContent: 'new choices → ' + newOpts.join(' · ') }));
+
+  const issues = $('issues');
+  issues.replaceChildren();
+  const lines = [...problems.map(p => ({ red: true, t: p }))];
+  items.forEach(i => { i.errs.forEach(e => lines.push({ red: !$('skipBad').checked, t: 'Row ' + i.n + ': ' + e })); i.warns.forEach(w => lines.push({ t: 'Row ' + i.n + ': ' + w })); });
+  if (lines.length) issues.append(el('div', { className: 'issues' + (lines.some(l => l.red) ? ' red' : '') }, ...lines.slice(0, 60).map(l => el('div', { textContent: l.t })), ...(lines.length > 60 ? [el('div', { textContent: '… and ' + (lines.length - 60) + ' more' })] : [])));
+
+  const tbl = $('pvTable');
+  tbl.replaceChildren();
+  const head = el('tr', {}, el('th', { textContent: '#' }), el('th', { textContent: 'Action' }), el('th', { textContent: 'ID' }));
+  if (li > 0) head.append(el('th', { textContent: 'Parent' }));
+  mappedCols.forEach(c => head.append(el('th', { textContent: c.label })));
+  tbl.append(el('thead', {}, head));
+  const tb = el('tbody');
+  const LABEL = { add: 'ADD', update: 'UPDATE', skip: 'SKIP', error: 'ERROR' };
+  items.slice(0, 200).forEach(i => {
+    const tr = el('tr', { className: i.errs.length ? 'err' : i.warns.length ? 'warn' : '' });
+    tr.append(el('td', { textContent: i.n }), el('td', { className: 'st ' + ({ add: 'add', update: 'upd', skip: 'skip', error: 'err' }[i.action]), textContent: LABEL[i.action] }), el('td', { className: 'mono', textContent: i.id || (i.action === 'add' ? '(new)' : '') }));
+    if (li > 0) tr.append(el('td', { className: 'mono', textContent: i.parentId }));
+    mappedCols.forEach(c => { const v = i.rec[c.key]; tr.append(el('td', { textContent: Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? '✓' : '—') : String(v ?? ''), title: String(v ?? '') })); });
+    tb.append(tr);
+  });
+  if (items.length > 200) tb.append(el('tr', {}, el('td', { colSpan: 3 + (li > 0 ? 1 : 0) + mappedCols.length, className: 'muted', textContent: '… ' + (items.length - 200) + ' more rows not shown' })));
+  tbl.append(tb);
+
+  const blocked = problems.length > 0 || errors > 0 || (adds + upds === 0);
+  $('applyBtn').disabled = blocked;
+  $('applyNote').textContent = blocked
+    ? (problems.length ? 'Fix the points above to continue.' : errors ? 'Some rows have errors. Fix the file, or tick "Skip rows with errors".' : 'Nothing to import.')
+    : 'Writes ' + (adds + upds) + ' records to ' + levelTitle(li) + '. A snapshot is taken first.';
+}
+
+$('applyBtn').onclick = async () => {
+  const { li, mode, items, opts, mappedCols, existing, parents } = imp.plan;
+  const live = items.filter(i => i.action === 'add' || i.action === 'update');
+  if (mode === 'replace' && !await ask('Replace every ' + levelTitle(li) + ' record with the ' + live.length + ' rows from the file?', 'Replace')) return;
+  const next = JSON.parse(JSON.stringify(state));
+  // Re-find existing records and parents inside the copy.
+  const ex = new Map(), par = new Map();
+  const walk = (rows, depth) => rows.forEach(r => { if (depth === li) ex.set(r.id, r); if (depth === li - 1) par.set(r.id, r); if (r.children) walk(r.children, depth + 1); });
+  walk(next.rows, 0);
+  if (mode === 'replace') {
+    if (li === 0) next.rows = [];
+    else par.forEach(p => (p.children = []));
+    ex.clear();
+  }
+  const hasKids = li + 1 < next.config.levels.length;
+  let added = 0, updated = 0;
+  for (const i of live) {
+    const target = li === 0 ? next.rows : par.get(i.parentId).children || (par.get(i.parentId).children = []);
+    const cur = mode === 'upsert' && i.id ? ex.get(i.id) : null;
+    if (cur) {
+      mappedCols.forEach(c => (cur[c.key] = i.rec[c.key]));
+      if (li > 0) {   // parent may have changed: move the record
+        if (!target.includes(cur)) { par.forEach(p => { const k = (p.children || []).indexOf(cur); if (k >= 0) p.children.splice(k, 1); }); target.push(cur); }
+      }
+      updated++;
+    } else {
+      const rec = { id: i.id && mode !== 'append' && !ex.has(i.id) ? i.id : uid() };
+      next.config.levels[li].columns.forEach(c => (rec[c.key] = c.type === 'checkbox' ? false : isMulti(c) ? [] : ''));
+      mappedCols.forEach(c => (rec[c.key] = i.rec[c.key]));
+      if (hasKids) rec.children = [];
+      target.push(rec);
+      ex.set(rec.id, rec);
+      added++;
+    }
+  }
+  // New choice options discovered in the file.
+  opts.newOptionsMap.forEach((set, key) => { const c = next.config.levels[li].columns.find(c => c.key === key); if (c) c.options = [...new Set([...(c.options || []), ...set])]; });
+  $('applyBtn').disabled = true;
+  try {
+    await putState(next, 'before-import-' + levelTitle(li));
+    toast('Imported: ' + added + ' added, ' + updated + ' updated.');
+    stepPreview.classList.add('off'); stepMap.classList.add('off');
+    $('csvOpts').classList.add('hidden');
+    $('csvDrop').querySelector('b').textContent = 'Choose a CSV file';
+    $('csvFile').value = '';
+    imp.text = ''; imp.rows = [];
+  } catch (e) { toast('Import failed: ' + e.message, true); $('applyBtn').disabled = false; }
+};
+
+// ---------- snapshots ----------
+async function loadSnapshots() {
+  const list = $('snapList');
+  const snaps = await fetch('/api/snapshots').then(r => r.json());
+  list.replaceChildren();
+  if (!snaps.length) return list.append(el('span', { className: 'muted', textContent: 'No snapshots yet.' }));
+  snaps.forEach(sn => {
+    const reason = sn.name.replace(/^[\dT-]+-/, '').replace(/\.json$/, '').replace(/-/g, ' ');
+    const restore = el('button', { textContent: 'Restore' });
+    restore.onclick = async () => {
+      if (!await ask('Restore the snapshot from ' + fmtTime(sn.time) + '? Current data is snapshotted first.', 'Restore')) return;
+      const data = await fetch('/api/snapshots/' + encodeURIComponent(sn.name)).then(r => r.json());
+      try { await putState({ config: data.config, rows: data.rows }, 'before-restore'); toast('Snapshot restored.'); } catch (e) { toast('Restore failed: ' + e.message, true); }
+    };
+    const del = el('button', { className: 'ghost', textContent: 'Delete' });
+    del.onclick = async () => { if (!await ask('Delete this snapshot?', 'Delete')) return; await fetch('/api/snapshots/' + encodeURIComponent(sn.name), { method: 'DELETE' }); loadSnapshots(); };
+    list.append(el('div', { className: 'row' },
+      el('span', { className: 'name' }, fmtTime(sn.time) + ' ', el('small', { textContent: '· ' + reason + ' · ' + fmtBytes(sn.size) })),
+      el('a', { href: '/api/snapshots/' + encodeURIComponent(sn.name) + '?download', download: sn.name }, el('button', { className: 'ghost', textContent: 'Download' })),
+      restore, del));
+  });
+}
+$('snapBtn').onclick = async () => { await fetch('/api/snapshots?reason=manual', { method: 'POST' }); toast('Snapshot taken.'); loadSnapshots(); };
+
+// ---------- boot ----------
+fetch('/api/state').then(r => r.json()).then(s => {
+  state = s;
+  renderExports();
+  const lv = $('level');
+  levels().forEach((l, i) => lv.append(el('option', { value: i, textContent: levelTitle(i) + (i ? ' (level ' + (i + 1) + ')' : '') })));
+  loadSnapshots();
+});
+</script>
+</body>
+</html>

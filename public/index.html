@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Things</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/base.css">
+<style>
+  /* ---------- card / toolbar ---------- */
+  .toolbar { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .search { position:relative; flex:0 1 320px; }
+  .search svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px; stroke:var(--faint); fill:none; stroke-width:2; stroke-linecap:round; pointer-events:none; }
+  .search input { width:100%; font:inherit; padding:8px 12px 8px 34px; border:1px solid var(--line-strong); border-radius:10px; background:var(--bg2); color:inherit; outline:none; transition:.15s; }
+  .search input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }
+  .count { color:var(--muted); font-size:12px; font-weight:600; background:var(--gray-soft); padding:4px 10px; border-radius:999px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; flex:1; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:4px 6px 4px 10px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); }
+  .chip b { font-weight:500; opacity:.8; }
+  .chip button { border:none; background:none; padding:0 4px; color:inherit; font-size:13px; line-height:1; border-radius:50%; }
+  .chip button:hover { background:var(--accent); color:#fff; }
+
+  /* ---------- table ---------- */
+  .scroll { overflow-x:auto; }
+  table { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; min-width:100%; }
+  th, td { border-bottom:1px solid var(--line); padding:0; text-align:left; vertical-align:middle; }
+  tbody > tr:last-child > td { border-bottom:none; }
+  th.h { padding:5px 34px 5px 10px; cursor:pointer; user-select:none; white-space:nowrap; background:var(--head); backdrop-filter:blur(12px); font-size:10px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:700; position:sticky; top:0; z-index:2; overflow:hidden; text-overflow:ellipsis; transition:color .15s; }
+  th.h:hover { color:var(--text); }
+  th.h.sorted { color:var(--accent-ink); }
+  th.h .dd { position:absolute; right:10px; top:50%; transform:translateY(-50%); padding:2px 7px; border:none; background:none; color:var(--faint); font-size:11px; border-radius:6px; opacity:0; transition:.15s; }
+  th.h:hover .dd, th.h .dd.on { opacity:1; }
+  th.h .dd:hover { background:var(--accent-soft); color:var(--accent-ink); }
+  th.h .dd.on { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; }
+  .rs { position:absolute; right:0; top:0; bottom:0; width:7px; cursor:col-resize; }
+  .rs::after { content:""; position:absolute; right:3px; top:25%; bottom:25%; width:1px; background:var(--line-strong); }
+  .rs:hover::after, body.resizing .rs::after { background:var(--accent); width:2px; }
+  body.resizing { cursor:col-resize; user-select:none; }
+  th.tog, td.tog { width:34px; text-align:center; }
+  th.act, td.act { width:30px; text-align:center; }
+  tbody > tr { transition:background .12s; }
+  tbody > tr:hover > td:not(.subcell) { background:var(--hover); }
+  tr.done > td:not(.subcell) > input:not([type=checkbox]) { color:var(--faint); }
+  tr.done > td.strike > input { text-decoration:line-through; }
+
+  td input:not([type=checkbox]) { width:100%; border:none; background:transparent; color:inherit; font:inherit; font-size:12.5px; padding:5px 10px; outline:none; border-radius:0; transition:.12s; }
+  td input:focus { background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent); }
+  td.num input { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; font-variant-numeric:tabular-nums; }
+  td.chk { text-align:center; }
+
+  /* custom checkbox */
+  input[type=checkbox] { appearance:none; -webkit-appearance:none; width:16px; height:16px; border-radius:5px; border:1.5px solid var(--line-strong); background:var(--panel-solid); cursor:pointer; display:inline-grid; place-items:center; vertical-align:middle; transition:.15s; margin:0; }
+  input[type=checkbox]::before { content:""; width:8px; height:5px; border:2px solid #fff; border-top:none; border-right:none; transform:rotate(-45deg) scale(0); transition:transform .18s cubic-bezier(.2,.8,.2,1); margin-top:-2px; }
+  input[type=checkbox]:hover { border-color:var(--accent); }
+  input[type=checkbox]:checked { background:linear-gradient(135deg,var(--green),var(--teal)); border-color:transparent; box-shadow:0 4px 12px -4px var(--green); }
+  input[type=checkbox]:checked::before { transform:rotate(-45deg) scale(1); }
+  .vrow input[type=checkbox]:checked { background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:none; }
+
+  /* status pills */
+  td.pillcell { padding:3px 8px; }
+  td.pillcell input { padding:2px 9px; border-radius:999px; font-weight:600; font-size:11.5px; width:auto; max-width:100%; background:var(--gray-soft); color:var(--gray); display:inline-flex; }
+  td.pillcell input:focus { box-shadow:0 0 0 3px var(--accent-soft); background:var(--panel-solid); color:var(--text); }
+  td.pillcell[data-tone=green] input { background:var(--green-soft); color:var(--green); }
+  td.pillcell[data-tone=red] input { background:var(--red-soft); color:var(--red); }
+  td.pillcell[data-tone=amber] input { background:var(--amber-soft); color:var(--amber); }
+  td.pillcell[data-tone=blue] input { background:var(--blue-soft); color:var(--blue); }
+  td.pillcell[data-tone=accent] input { background:var(--accent-soft); color:var(--accent-ink); }
+  td.pillcell[data-tone=pink] input { background:var(--pink-soft); color:var(--pink); }
+  td.pillcell[data-tone=teal] input { background:var(--teal-soft); color:var(--teal); }
+
+  /* meeting minutes */
+  th.note, td.note { width:30px; text-align:center; }
+  td.note button { border:none; background:none; padding:3px 5px; border-radius:7px; color:var(--faint); cursor:pointer; display:inline-grid; place-items:center; }
+  td.note button svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  td.note button:hover { background:var(--accent-soft); color:var(--accent-ink); }
+  td.note button.has { color:var(--accent-ink); }
+  td.note button.has svg { fill:var(--accent-soft); }
+  dialog.minutes { width:min(860px,96vw); padding:0; overflow:hidden; }
+  .mn-head { display:flex; align-items:center; gap:12px; padding:16px 22px 0; }
+  .mn-head h2 { margin:0; font-size:17px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mn-head h2 small { color:var(--muted); font-weight:500; font-size:12px; margin-left:8px; }
+  .mn-head .id { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11px; color:var(--faint); background:var(--gray-soft); padding:2px 8px; border-radius:6px; }
+  .tabs { display:flex; gap:4px; padding:12px 22px 0; border-bottom:1px solid var(--line); }
+  .tab { border:none; background:none; padding:8px 14px; border-radius:10px 10px 0 0; color:var(--muted); font-weight:600; font-size:13px; position:relative; }
+  .tab.on { color:var(--accent-ink); }
+  .tab.on::after { content:""; position:absolute; left:10px; right:10px; bottom:-1px; height:2px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); border-radius:2px; }
+  .rt-toolbar { display:flex; flex-wrap:wrap; gap:2px; padding:8px 14px; border-bottom:1px solid var(--line); background:var(--head); }
+  .rt-toolbar button { border:none; background:none; padding:5px 8px; border-radius:8px; font-size:12.5px; font-weight:600; color:var(--muted); min-width:30px; }
+  .rt-toolbar button:hover { background:var(--accent-soft); color:var(--accent-ink); }
+  .rt-toolbar .sep { width:1px; background:var(--line-strong); margin:4px 6px; }
+  .rt-body { height:min(60vh,520px); overflow:auto; }
+  .rt, .rt-preview { padding:18px 24px; outline:none; min-height:100%; line-height:1.55; font-size:14px; }
+  .rt:empty::before { content:attr(data-placeholder); color:var(--faint); pointer-events:none; }
+  .rt h1, .rt-preview h1 { font-size:22px; margin:14px 0 8px; letter-spacing:-.02em; }
+  .rt h2, .rt-preview h2 { font-size:17px; margin:14px 0 6px; }
+  .rt h3, .rt-preview h3 { font-size:14px; margin:12px 0 4px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-ink); }
+  .rt p, .rt-preview p { margin:0 0 8px; }
+  .rt ul, .rt ol, .rt-preview ul, .rt-preview ol { margin:0 0 8px; padding-left:24px; }
+  .rt blockquote, .rt-preview blockquote { margin:8px 0; padding:6px 14px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; }
+  .rt a, .rt-preview a { color:var(--accent-ink); }
+  .rt table, .rt-preview table { border-collapse:collapse; margin:8px 0; }
+  .rt td, .rt th, .rt-preview td, .rt-preview th { border:1px solid var(--line-strong); padding:4px 8px; }
+  .rt code, .rt-preview code { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12.5px; background:var(--gray-soft); padding:1px 5px; border-radius:5px; }
+  .rt-preview.empty { color:var(--faint); font-style:italic; }
+  .mn-foot { display:flex; align-items:center; gap:10px; padding:12px 22px 16px; border-top:1px solid var(--line); }
+  .mn-foot .meta { flex:1; color:var(--muted); font-size:12px; }
+
+  /* rule effects: a tinted row, a badge on a cell, or both */
+  tr[data-tone=green] > td:not(.subcell) { background:var(--green-soft); } tr[data-tone=red] > td:not(.subcell) { background:var(--red-soft); } tr[data-tone=amber] > td:not(.subcell) { background:var(--amber-soft); } tr[data-tone=blue] > td:not(.subcell) { background:var(--blue-soft); } tr[data-tone=accent] > td:not(.subcell) { background:var(--accent-soft); } tr[data-tone=pink] > td:not(.subcell) { background:var(--pink-soft); } tr[data-tone=teal] > td:not(.subcell) { background:var(--teal-soft); } tr[data-tone=gray] > td:not(.subcell) { background:var(--gray-soft); }
+  td.ruled { position:relative; }
+  td.ruled > input:not([type=checkbox]) { padding-right:70px; }
+  td.ruled .flag { position:absolute; right:28px; top:50%; transform:translateY(-50%); font-size:9px; font-weight:700; letter-spacing:.08em; padding:2px 6px; border-radius:6px; pointer-events:none; white-space:nowrap; }
+  td.ruled.chk .flag, td.ruled.choice .flag, td.ruled.multi .flag { position:static; transform:none; margin-left:6px; }
+  .flag[data-tone=green] { background:var(--green-soft); color:var(--green); } .flag[data-tone=red] { background:var(--red-soft); color:var(--red); } .flag[data-tone=amber] { background:var(--amber-soft); color:var(--amber); } .flag[data-tone=blue] { background:var(--blue-soft); color:var(--blue); } .flag[data-tone=accent] { background:var(--accent-soft); color:var(--accent-ink); } .flag[data-tone=pink] { background:var(--pink-soft); color:var(--pink); } .flag[data-tone=teal] { background:var(--teal-soft); color:var(--teal); } .flag[data-tone=gray] { background:var(--gray-soft); color:var(--gray); }
+  td.ruled[data-tone=red] > input { color:var(--red); font-weight:600; } td.ruled[data-tone=amber] > input { color:var(--amber); font-weight:600; } td.ruled[data-tone=green] > input { color:var(--green); font-weight:600; } td.ruled[data-tone=blue] > input { color:var(--blue); font-weight:600; }
+  /* rule editor (Configure dialog) */
+  .rule { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; background:var(--bg2); }
+  .rule .rhead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .rule .rhead input { flex:1; font:inherit; font-weight:600; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--panel-solid); color:inherit; outline:none; }
+  .rule .cond, .rule .eff { display:flex; align-items:center; gap:6px; margin:4px 0; flex-wrap:wrap; font-size:12.5px; }
+  .rule .cond .kw, .rule .eff .kw { color:var(--muted); min-width:44px; text-align:right; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
+  .rule select, .rule .cond input, .rule .eff input[type=text] { font:inherit; font-size:12.5px; padding:5px 8px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel-solid); color:inherit; outline:none; }
+  .rule .cond input { width:120px; }
+  .rule .x { border:none; background:none; color:var(--faint); padding:2px 6px; border-radius:6px; }
+  .rule .x:hover { color:var(--red); background:var(--red-soft); }
+  .rule .sw { gap:3px; } .rule .sw button { width:16px; height:16px; }
+  .rule .sw button.none { background:transparent; border:1.5px dashed var(--line-strong); opacity:1; }
+  .rule .eff label { display:flex; align-items:center; gap:5px; }
+
+  /* avatars for owner-style text columns */
+  .av { width:20px; height:20px; border-radius:50%; flex:none; display:grid; place-items:center; color:#fff; font-size:9px; font-weight:700; letter-spacing:.02em; box-shadow:0 2px 6px -2px rgba(0,0,0,.4), inset 0 0 0 1.5px rgba(255,255,255,.35); }
+  td.personcell .add { color:var(--faint); font-size:11px; padding:1px 6px; border-radius:999px; border:1px dashed var(--line-strong); }
+  td.personcell:hover .add { color:var(--accent-ink); border-color:var(--accent); }
+  td.personcell.editing .who { box-shadow:inset 0 0 0 2px var(--accent); border-radius:8px; }
+  .vrow .av { width:22px; height:22px; font-size:9.5px; }
+  .pplrow { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .pplrow input[type=text], .pplrow input[type=email] { font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; }
+  .pplrow input:focus { border-color:var(--accent); }
+  .pplrow .nm { flex:1; } .pplrow .ini { width:52px; text-align:center; font-family:"JetBrains Mono",ui-monospace,monospace; text-transform:uppercase; }
+  .pplrow .av { width:26px; height:26px; font-size:10px; }
+
+  /* choice columns */
+  td.choice { padding:3px 8px; }
+  td.choice select { font:inherit; font-size:11.5px; font-weight:600; padding:2px 22px 2px 9px; border:none; border-radius:999px; background:var(--gray-soft); color:var(--gray); outline:none; cursor:pointer; max-width:100%; appearance:none; -webkit-appearance:none; background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%); background-position:calc(100% - 11px) 55%,calc(100% - 7px) 55%; background-size:4px 4px; background-repeat:no-repeat; }
+  td.choice select:focus { box-shadow:0 0 0 3px var(--accent-soft); }
+  td.choice select.blank { color:var(--faint); font-weight:500; }
+  td.choice[data-tone=green] select { background-color:var(--green-soft); color:var(--green); }
+  td.choice[data-tone=red] select { background-color:var(--red-soft); color:var(--red); }
+  td.choice[data-tone=amber] select { background-color:var(--amber-soft); color:var(--amber); }
+  td.choice[data-tone=blue] select { background-color:var(--blue-soft); color:var(--blue); }
+  td.choice[data-tone=accent] select { background-color:var(--accent-soft); color:var(--accent-ink); }
+  td.choice[data-tone=pink] select { background-color:var(--pink-soft); color:var(--pink); }
+  td.choice[data-tone=teal] select { background-color:var(--teal-soft); color:var(--teal); }
+  td.multi { padding:2px 8px; cursor:pointer; }
+  td.multi .pills { display:flex; flex-wrap:wrap; gap:3px; align-items:center; min-height:20px; }
+  td.multi .pill { font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; background:var(--gray-soft); color:var(--gray); white-space:nowrap; }
+  td.multi .pill[data-tone=green] { background:var(--green-soft); color:var(--green); }
+  td.multi .pill[data-tone=red] { background:var(--red-soft); color:var(--red); }
+  td.multi .pill[data-tone=amber] { background:var(--amber-soft); color:var(--amber); }
+  td.multi .pill[data-tone=blue] { background:var(--blue-soft); color:var(--blue); }
+  td.multi .pill[data-tone=accent] { background:var(--accent-soft); color:var(--accent-ink); }
+  td.multi .pill[data-tone=pink] { background:var(--pink-soft); color:var(--pink); }
+  td.multi .pill[data-tone=teal] { background:var(--teal-soft); color:var(--teal); }
+  td.multi .add { color:var(--faint); font-size:11px; padding:1px 6px; border-radius:999px; border:1px dashed var(--line-strong); }
+  td.multi:hover .add { color:var(--accent-ink); border-color:var(--accent); }
+  td.multi.editing .pills { box-shadow:inset 0 0 0 2px var(--accent); border-radius:8px; }
+  .crow.opts { padding-left:22px; margin-top:-2px; }
+  .optlist { padding-left:22px; margin:-2px 0 10px; display:flex; flex-direction:column; gap:6px; }
+  .optrow { display:flex; align-items:center; gap:8px; }
+  .optrow input[type=text] { flex:1; font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; }
+  .optrow input[type=text]:focus { border-color:var(--accent); }
+  .optrow .drag { color:var(--faint); font-size:13px; width:12px; text-align:center; }
+  .sw { display:flex; gap:4px; }
+  .sw button { width:18px; height:18px; padding:0; border-radius:50%; border:2px solid transparent; background:var(--c); cursor:pointer; opacity:.55; transition:.12s; }
+  .sw button:hover { opacity:1; transform:scale(1.15); }
+  .sw button.on { opacity:1; border-color:var(--text); box-shadow:0 0 0 2px var(--panel-solid) inset; }
+  .optrow .prev { font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; background:var(--gray-soft); color:var(--gray); min-width:60px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
+  .prev[data-tone=green] { background:var(--green-soft); color:var(--green); } .prev[data-tone=red] { background:var(--red-soft); color:var(--red); } .prev[data-tone=amber] { background:var(--amber-soft); color:var(--amber); } .prev[data-tone=blue] { background:var(--blue-soft); color:var(--blue); } .prev[data-tone=accent] { background:var(--accent-soft); color:var(--accent-ink); } .prev[data-tone=pink] { background:var(--pink-soft); color:var(--pink); } .prev[data-tone=teal] { background:var(--teal-soft); color:var(--teal); }
+  .optrow .x { border:none; background:none; color:var(--faint); padding:2px 6px; border-radius:6px; }
+  .optrow .x:hover { color:var(--red); background:var(--red-soft); }
+  .crow.opts input { font-size:12.5px; }
+  .crow.opts label { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); white-space:nowrap; }
+
+  /* owner avatar */
+  td.person { display:flex; align-items:center; gap:0; }
+  td.person .av { width:20px; height:20px; border-radius:50%; flex:none; margin-left:8px; display:grid; place-items:center; color:#fff; font-size:9px; font-weight:700; letter-spacing:.02em; box-shadow:0 2px 6px -2px rgba(0,0,0,.4), inset 0 0 0 1.5px rgba(255,255,255,.35); }
+  td.person input { padding-left:6px; }
+
+  /* dates */
+  td.datecell input { font-variant-numeric:tabular-nums; } td.datecell.overdue input, td.datecell.soon input { padding-right:76px; }
+  td.datecell.overdue input { color:var(--red); font-weight:600; }
+  td.datecell.soon input { color:var(--amber); font-weight:600; }
+  td.datecell .flag { position:absolute; right:28px; top:50%; transform:translateY(-50%); font-size:9px; font-weight:700; letter-spacing:.08em; padding:2px 6px; border-radius:6px; pointer-events:none; }
+  td.datecell { position:relative; }
+  td.datecell.overdue .flag { background:var(--red-soft); color:var(--red); }
+  td.datecell.soon .flag { background:var(--amber-soft); color:var(--amber); }
+
+  /* expand toggle */
+  .tip { position:fixed; z-index:50; background:var(--text); color:var(--bg); padding:7px 10px; border-radius:9px; font-size:12px; line-height:1.4; max-width:300px; white-space:pre-line; box-shadow:0 10px 30px -10px rgba(0,0,0,.5); pointer-events:none; opacity:0; transform:translateY(-3px); transition:opacity .12s, transform .12s; }
+  .tip.on { opacity:1; transform:none; }
+  .toggle { cursor:pointer; color:var(--muted); user-select:none; display:inline-flex; align-items:center; gap:4px; padding:2px 4px; border-radius:8px; font-size:11px; transition:.15s; }
+  .toggle svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s cubic-bezier(.2,.8,.2,1); }
+  .toggle.open svg { transform:rotate(90deg); }
+  .toggle:hover { background:var(--accent-soft); color:var(--accent-ink); }
+  .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 7px; font-weight:700; font-size:10.5px; }
+  td.idcell { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:10.5px; color:var(--faint); letter-spacing:.02em; cursor:copy; white-space:nowrap; }
+  td.idcell:hover { color:var(--accent-ink); }
+  th.idh { padding:5px 10px; font-size:10px; white-space:nowrap; background:var(--head); backdrop-filter:blur(12px); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); font-weight:700; }
+  td.idcell { padding:0 10px; }
+  td.subcell { background:var(--sub); padding:6px 10px 8px 40px; position:relative; }
+  td.subcell td.subcell { padding-left:30px; }
+  td.subcell::before { left:16px; }
+  /* compact nested grids */
+  td.subcell .bar { padding:3px 6px; gap:6px; }
+  td.subcell .bar button { padding:3px 8px; font-size:12px; }
+  td.subcell .count { font-size:11px; padding:2px 8px; }
+  td.subcell .empty { padding:14px; font-size:12px; }
+  td.subcell .empty .art { width:36px; height:36px; margin-bottom:6px; border-radius:12px; }
+  td.subcell .empty .art svg { width:18px; height:18px; }
+  td.subcell .empty b { font-size:13px; margin-bottom:2px; }
+  td.subcell > .card { border-radius:10px; }
+  .lvl { display:inline-block; background:var(--accent-soft); color:var(--accent-ink); font-size:10px; padding:1px 6px; border-radius:6px; margin-left:2px; }
+  td.subcell::before { content:""; position:absolute; left:22px; top:0; bottom:0; width:2px; background:linear-gradient(180deg,var(--accent),var(--accent-2)); border-radius:2px; opacity:.6; }
+  td.subcell > .card { box-shadow:none; animation:unfold .3s cubic-bezier(.2,.8,.2,1) both; transform-origin:top; background:var(--panel-solid); }
+  @keyframes unfold { from { opacity:0; transform:translateY(-6px) scaleY(.96); } }
+  .subtitle { font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent-ink); margin:0 0 4px 2px; display:flex; align-items:center; gap:8px; }
+  .subtitle .bar2 { flex:1; height:4px; border-radius:4px; background:var(--line-strong); max-width:160px; overflow:hidden; }
+  .subtitle .bar2 i { display:block; height:100%; background:linear-gradient(90deg,var(--green),var(--teal)); border-radius:4px; transition:width .5s; }
+  .subtitle small { font-weight:600; color:var(--muted); letter-spacing:0; text-transform:none; }
+
+  .empty { padding:48px 24px; color:var(--muted); text-align:center; }
+  .empty .art { width:72px; height:72px; margin:0 auto 14px; border-radius:22px; background:linear-gradient(135deg,var(--accent-soft),transparent); display:grid; place-items:center; }
+  .empty .art svg { width:34px; height:34px; stroke:var(--accent); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .empty b { display:block; color:var(--text); font-size:15px; margin-bottom:4px; }
+  .bar { padding:10px 12px; display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); background:var(--head); }
+
+  tfoot td { background:var(--head); border-top:1px solid var(--line-strong); border-bottom:none; padding:4px 10px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted); font-weight:500; }
+  tfoot td b { color:var(--text); font-family:"JetBrains Mono",ui-monospace,monospace; font-size:11px; background:var(--accent-soft); color:var(--accent-ink); padding:1px 6px; border-radius:6px; }
+
+  /* ---------- menu ---------- */
+  .menu { position:fixed; z-index:50; width:250px; background:var(--panel-solid); border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 24px 60px -12px rgba(0,0,0,.45); padding:8px; animation:pop .18s cubic-bezier(.2,.8,.2,1) both; transform-origin:top left; }
+  @keyframes pop { from { opacity:0; transform:scale(.96) translateY(-4px); } }
+  .menu hr { border:none; border-top:1px solid var(--line); margin:6px 0; }
+  .mi { display:block; width:100%; text-align:left; border:none; background:none; padding:7px 10px; border-radius:8px; font-weight:500; }
+  .mi:hover { background:var(--accent-soft); color:var(--accent-ink); }
+  .menu > input { width:100%; font:inherit; padding:7px 10px; border:1px solid var(--line-strong); border-radius:8px; background:var(--bg2); color:inherit; outline:none; margin-bottom:6px; }
+  .menu > input:focus { border-color:var(--accent); }
+  .vals { max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px; }
+  .vrow { display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; cursor:pointer; }
+  .vrow:hover { background:var(--accent-soft); }
+  .vrow input[type=checkbox] { width:16px; height:16px; border-radius:5px; }
+  .vrow input[type=checkbox]::before { width:8px; height:4px; border-width:2px; }
+  .mbtns { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+  .mbtns .primary { padding:7px 14px; box-shadow:none; }
+  .aggrow { display:flex; align-items:center; justify-content:space-between; padding:4px 10px; color:var(--muted); font-weight:500; }
+  .aggrow select { font:inherit; padding:4px 8px; border:1px solid var(--line-strong); border-radius:8px; background:var(--bg2); color:var(--text); }
+
+</style>
+</head>
+<body>
+<nav>
+  <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div><span>Track Things</span></div>
+  <div class="navlabel">Workspace</div>
+  <button class="navitem active"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Grid</button>
+  <button class="navitem" id="cfgBtn"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="15" r="3"/></svg>Configure columns</button>
+  <a class="navitem" href="/import-export.html"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import / Export</a>
+  <div class="spacer"></div>
+  <button class="navitem" id="themeBtn"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Toggle theme</button>
+  <div class="status"><span class="dot" id="dot"></span><span id="dotText">All changes saved</span></div>
+</nav>
+<div class="shell">
+  <header>
+    <div class="hgroup"><div class="eyebrow">Tracker</div><h1 id="title"></h1></div>
+    <button class="primary" id="newBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New row</button>
+  </header>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"></dialog>
+<script>
+const TYPES = ['text', 'number', 'date', 'checkbox', 'choice'];
+const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice' };
+const isMulti = c => c.type === 'choice' && !!c.multi;
+// Multi-choice values are arrays in memory and 'a|b' strings in CSV.
+const multiVals = v => Array.isArray(v) ? v : v === '' || v == null ? [] : String(v).split('|').map(x => x.trim()).filter(Boolean);
+let state = { config: { title: '', levels: [{ title: 'Rows', columns: [] }] }, rows: [] };
+const uiMain = { sort: null, vals: {} };
+const uiSub = {};            // per-parent-row sub grid UI state, keyed by the parent record's id
+const openRows = new Set();  // ids of records whose sub records are expanded
+const levels = () => state.config.levels;
+const levelTitle = i => (levels()[i] && levels()[i].title) || (i ? 'Level ' + (i + 1) : 'Rows');
+const flattenLevel = (rows, depth) => depth === 0 ? rows : rows.flatMap(r => flattenLevel(r.children || [], depth - 1));
+let saveTimer;
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const el = (tag, props = {}, ...kids) => {
+  const e = Object.assign(document.createElement(tag), props);
+  kids.forEach(k => e.append(k));
+  return e;
+};
+// ---- in-page confirmation (native confirm() is blocked in some embedded browsers and silently returns false) ----
+// Opens a small modal on top of whatever is open and resolves true for OK, false for Cancel / Escape.
+function ask(message, okLabel = 'OK') {
+  return new Promise(resolve => {
+    const d = el('dialog', { className: 'ask' });
+    const no = el('button', { type: 'button', textContent: 'Cancel' });
+    const yes = el('button', { type: 'button', className: 'primary', textContent: okLabel });
+    d.append(el('p', { textContent: message }), el('div', { className: 'dlgbtns' }, no, yes));
+    let answer = false;
+    yes.onclick = () => { answer = true; d.close(); };
+    no.onclick = () => d.close();
+    d.onclose = () => { d.remove(); resolve(answer); };
+    document.body.append(d);
+    d.showModal();
+    yes.focus();
+  });
+}
+const svg = (d, extra = '') => { const s = el('span'); s.innerHTML = `<svg viewBox="0 0 24 24" ${extra}><path d="${d}"/></svg>`; return s.firstChild; };
+
+// ---- theme ----
+const themeBtn = document.getElementById('themeBtn');
+try { const t = localStorage.getItem('tt-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+themeBtn.onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('tt-theme', next); } catch {}
+};
+
+// ---- tooltips: in-page, for elements with data-tip (native title tooltips do not show in some embedded browsers) ----
+const tipEl = el('div', { className: 'tip' });
+document.body.append(tipEl);
+let tipFor = null;
+const hideTip = () => { tipFor = null; tipEl.classList.remove('on'); };
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (!t || t === tipFor) return;
+  tipFor = t;
+  tipEl.textContent = t.dataset.tip;
+  tipEl.classList.add('on');
+  const r = t.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2, y = r.bottom + 8;
+  x = Math.max(8, Math.min(x, innerWidth - w - 8));
+  if (y + h > innerHeight - 8) y = r.top - h - 8;
+  tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+});
+document.addEventListener('mouseout', e => { if (tipFor && !tipFor.contains(e.relatedTarget)) hideTip(); });
+document.addEventListener('mousedown', hideTip);
+addEventListener('scroll', hideTip, true);
+
+// ---- save with indicator ----
+const dot = document.getElementById('dot'), dotText = document.getElementById('dotText');
+function save() {
+  clearTimeout(saveTimer);
+  dot.classList.add('saving'); dotText.textContent = 'Saving…';
+  saveTimer = setTimeout(() => fetch('/api/state', { method: 'PUT', body: JSON.stringify(state) })
+    .then(() => { dot.classList.remove('saving'); dotText.textContent = 'All changes saved'; })
+    .catch(() => { dotText.textContent = 'Save failed'; }), 250);
+  renderKpis();
+}
+
+function compare(a, b, type) {
+  if (type === 'number') return (parseFloat(a) || 0) - (parseFloat(b) || 0);
+  if (type === 'checkbox') return (a ? 1 : 0) - (b ? 1 : 0);
+  if (Array.isArray(a) || Array.isArray(b)) { a = multiVals(a).join(', '); b = multiVals(b).join(', '); }
+  return String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true });
+}
+
+const keyOf = (c, v) => c.type === 'checkbox' ? (v ? 'Yes' : 'No') : String(v ?? '');
+// Filter keys for a cell: a multi-choice cell contributes one key per selected option.
+const keysOf = (c, v) => isMulti(c) ? (multiVals(v).length ? multiVals(v) : ['']) : [keyOf(c, v)];
+
+function matches(row, cols, ui) {
+  if (ui.search) {
+    const q = ui.search.toLowerCase();
+    const inMinutes = row.minutes && row.minutes.replace(/<[^>]+>/g, ' ').toLowerCase().includes(q);   // search covers meeting minutes too
+    if (!inMinutes && !cols.some(c => (isMulti(c) ? multiVals(row[c.key]).join(' ') : String(row[c.key] ?? '')).toLowerCase().includes(q))) return false;
+  }
+  return cols.every(c => {
+    const set = ui.vals[c.key];
+    return !set || keysOf(c, row[c.key]).some(k => set.has(k));
+  });
+}
+
+// ---- semantic helpers (status pills, people, dates) ----
+// Column behaviours are explicit settings chosen in Configure (never guessed from the column name):
+//   text:     look = 'plain' | 'status' | 'person'
+//   date:     deadline = true/false (flag when in the past), doneBy = key of a checkbox column that cancels the flag ('' = always flag)
+//   checkbox: done = true marks the record as done (strike-through, progress bars, sub record counts)
+const isStatusCol = c => c.type === 'text' && c.look === 'status';
+const isPersonCol = c => c.type === 'text' && c.look === 'person';
+// Defaults for a brand-new column, suggested from its name; shown in Configure where they can be changed.
+function suggestBehaviour(c, cols) {
+  const n = (c.key + ' ' + c.label).toLowerCase();
+  if (c.type === 'text' && c.look === undefined) c.look = /status|state|stage|priority|phase/.test(n) ? 'status' : /owner|assignee|person|who|lead|user/.test(n) ? 'person' : 'plain';
+}
+
+// ---- rules: "when every condition holds, apply an effect" — set per level in Configure, nothing is inferred ----
+// rule = { name, when: [{ col, op, value }], effect: { apply: 'row' | <column key>, tone, label, done } }
+const OPS = {
+  text:     [['is', 'is'], ['isNot', 'is not'], ['contains', 'contains'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
+  choice:   [['is', 'is'], ['isNot', 'is not'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
+  number:   [['eq', '='], ['ne', '≠'], ['lt', '<'], ['gt', '>'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
+  date:     [['past', 'is in the past'], ['today', 'is today'], ['within', 'is within (days)'], ['beyond', 'is more than (days) away'], ['before', 'is before (date)'], ['after', 'is after (date)'], ['eq', 'is (date)'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
+  checkbox: [['checked', 'is ticked'], ['unchecked', 'is not ticked']],
+};
+const OP_NEEDS_VALUE = new Set(['is', 'isNot', 'contains', 'eq', 'ne', 'lt', 'gt', 'within', 'beyond', 'before', 'after']);
+function condMatches(w, row, cols) {
+  const c = cols.find(x => x.key === w.col);
+  if (!c) return false;
+  const v = row[c.key];
+  const vals = isMulti(c) ? multiVals(v) : [v];
+  const str = String(Array.isArray(v) ? v.join(', ') : v ?? '').trim();
+  const empty = Array.isArray(v) ? !v.length : str === '';
+  const needle = String(w.value ?? '').trim().toLowerCase();
+  switch (w.op) {
+    case 'empty': return empty;
+    case 'notEmpty': return !empty;
+    case 'is': return vals.some(x => String(x ?? '').trim().toLowerCase() === needle);
+    case 'isNot': return !vals.some(x => String(x ?? '').trim().toLowerCase() === needle);
+    case 'contains': return str.toLowerCase().includes(needle);
+    case 'checked': return !!v;
+    case 'unchecked': return !v;
+  }
+  if (c.type === 'number') {
+    if (empty) return false;
+    const a = Number(v), b = Number(w.value);
+    if (!isFinite(a) || !isFinite(b)) return false;
+    return { eq: a === b, ne: a !== b, lt: a < b, gt: a > b }[w.op] ?? false;
+  }
+  if (c.type === 'date') {
+    if (empty) return false;
+    const d = daysUntil(str);
+    if (isNaN(d)) return false;
+    const n = Number(w.value);
+    switch (w.op) {
+      case 'past': return d < 0;
+      case 'today': return d === 0;
+      case 'within': return d >= 0 && d <= (isFinite(n) ? n : 0);
+      case 'beyond': return d > (isFinite(n) ? n : 0);
+      case 'before': return str < String(w.value);
+      case 'after': return str > String(w.value);
+      case 'eq': return str === String(w.value);
+    }
+  }
+  return false;
+}
+const ruleMatches = (rule, row, cols) => (rule.when || []).length > 0 && rule.when.every(w => condMatches(w, row, cols));
+const rulesFor = level => (levels()[level] && levels()[level].rules) || [];
+// Tooltip for the sub record count at the start of a row: how many direct sub records (and how many are done),
+// then the totals for every deeper level nested under them, e.g. "3 Meetings (1 done) · 5 Steps nested under them".
+const plural = (n, title) => n + ' ' + (n === 1 || /s$/i.test(title) ? title : title + 's');
+const childSummary = (level, row) => {
+  const kids = row.children || [];
+  if (!kids.length) return 'No ' + levelTitle(level + 1) + ' yet';
+  const done = kids.filter(k => isDoneAt(level + 1, k)).length;
+  let out = plural(kids.length, levelTitle(level + 1)) + (done ? ' (' + done + ' done)' : '');
+  const deeper = [];
+  for (let d = 2; level + d < levels().length; d++) {
+    const n = flattenLevel(kids, d - 1).length;
+    if (n) deeper.push(plural(n, levelTitle(level + d)));
+  }
+  if (deeper.length) out += ' · ' + deeper.join(', ') + ' nested under them';
+  return out;
+};
+const matchedRules = (level, row) => rulesFor(level).filter(r => ruleMatches(r, row, levels()[level].columns));
+// A record is "done" when any rule whose effect says so matches it (strike-through, progress bars, counts).
+const isDoneAt = (level, row) => matchedRules(level, row).some(r => r.effect && r.effect.done);
+const hashHue = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; };
+const TONES = ['gray', 'green', 'blue', 'amber', 'red', 'accent', 'pink', 'teal'];
+// ---- people directory (config.people): what person columns pick from ----
+const people = () => state.config.people || (state.config.people = []);
+const findPerson = name => people().find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
+const initialsOf = name => String(name || '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+// Every distinct name currently typed into an owner / person column, at any level.
+function namesInUse() {
+  const out = new Set();
+  levels().forEach((lvl, d) => flattenLevel(state.rows, d).forEach(r => lvl.columns.forEach(c => { if (isPersonCol(c) && String(r[c.key] || '').trim()) out.add(String(r[c.key]).trim()); })));
+  return [...out].sort();
+}
+function setPersonLook(name, patch) {
+  let p = findPerson(name);
+  if (!p) { p = { name }; people().push(p); }
+  Object.assign(p, patch);
+  Object.keys(p).forEach(k => { if (p[k] === undefined || p[k] === '') delete p[k]; });
+  save(); render();
+}
+// Click an avatar in the grid: choose its colour and initials without opening Configure.
+function openAvatarMenu(anchor, name) {
+  closeMenu();
+  const p = findPerson(name) || { name };
+  const m = (menuEl = el('div', { className: 'menu' }));
+  const head = el('div', { className: 'aggrow' }, avatar(name, 26), el('b', { textContent: name, style: 'flex:1;margin-left:8px;color:var(--text)' }));
+  const sw = el('div', { className: 'sw', style: 'padding:6px 10px;gap:6px' });
+  TONES.forEach(t => sw.append(el('button', { type: 'button', className: (p.color || '') === t ? 'on' : '', title: t === 'gray' ? 'Grey' : t === 'accent' ? 'Purple' : t[0].toUpperCase() + t.slice(1), style: '--c:var(--' + t + ');width:22px;height:22px', onclick: () => setPersonLook(name, { color: t }) })));
+  const ini = el('input', { placeholder: 'Initials (' + initialsOf(name) + ')', value: p.initials || '', maxLength: 3, style: 'text-transform:uppercase' });
+  ini.onchange = () => setPersonLook(name, { initials: ini.value.trim().toUpperCase() });
+  m.append(head, el('div', { className: 'aggrow', style: 'padding:2px 10px 0', textContent: 'Avatar colour' }), sw, el('hr'), ini,
+    el('div', { className: 'mbtns' }, el('button', { type: 'button', className: 'ghost', textContent: 'Automatic colour', onclick: () => { setPersonLook(name, { color: undefined }); } }), el('button', { type: 'button', className: 'primary', textContent: 'Done', onclick: closeMenu })));
+  document.body.append(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.top = r.bottom + 4 + 'px';
+}
+// Avatar for a name: the configured colour and initials if there are any, otherwise a colour hashed from the name.
+function avatar(name, size) {
+  const p = findPerson(name);
+  const a = el('span', { className: 'av', textContent: p ? (p.initials || initialsOf(p.name)) : name ? initialsOf(name) : '?', title: name ? name + ' · click to set colour' : '' });
+  if (p && p.color && TONES.includes(p.color)) a.style.background = 'var(--' + p.color + ')';
+  else if (name) a.style.background = `linear-gradient(135deg, hsl(${hashHue(name)} 70% 55%), hsl(${(hashHue(name) + 40) % 360} 70% 45%))`;
+  else a.style.background = 'var(--faint)';
+  if (size) { a.style.width = a.style.height = size + 'px'; }
+  return a;
+}
+// Colour for a choice value: the colour set in Configure if there is one, otherwise a guess from the word.
+const optionTone = (c, v) => (c && c.colors && c.colors[v]) || tone(v);
+function tone(v) {
+  const s = String(v || '').toLowerCase();
+  if (!s) return '';
+  if (/done|complete|closed|resolved|shipped|approved|high/.test(s)) return /high/.test(s) ? 'red' : 'green';
+  if (/block|fail|overdue|urgent|critical|cancel/.test(s)) return 'red';
+  if (/review|pending|wait|hold|medium/.test(s)) return 'amber';
+  if (/progress|active|doing|working|open/.test(s)) return 'blue';
+  if (/not started|todo|backlog|new|low|idle/.test(s)) return 'gray';
+  if (/plan|design|draft/.test(s)) return 'accent';
+  return ['teal', 'pink', 'accent', 'blue'][hashHue(s) % 4];
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const daysUntil = d => Math.round((new Date(d) - new Date(today())) / 86400000);
+const hasDoneRule = level => rulesFor(level).some(r => r.effect && r.effect.done);
+
+// ---- aggregation (shown in a totals row under each grid) ----
+const AGG_LABELS = { count: 'Count', distinct: 'Distinct', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+const aggOptions = c => ({
+  number: ['count', 'distinct', 'sum', 'avg', 'min', 'max'],
+  date: ['count', 'min', 'max'],
+  checkbox: ['count'],
+  text: ['count', 'distinct'],
+  choice: ['count', 'distinct'],
+}[c.type]);
+const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+function aggregate(c, list) {
+  const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]);
+  const filled = c.type === 'checkbox' ? vals.filter(Boolean) : vals.filter(v => v !== '' && v != null);
+  if (c.agg === 'count') return filled.length;
+  if (c.agg === 'distinct') return new Set(filled).size;
+  if (c.type === 'date') {
+    if (!filled.length) return '';
+    const sorted = filled.slice().sort();
+    return c.agg === 'min' ? sorted[0] : sorted[sorted.length - 1];
+  }
+  const nums = filled.map(Number).filter(isFinite);
+  if (!nums.length) return '';
+  const sum = nums.reduce((a, b) => a + b, 0);
+  return fmtNum({ sum, avg: sum / nums.length, min: Math.min(...nums), max: Math.max(...nums) }[c.agg]);
+}
+
+// ---- column widths (remembered per level in this browser) ----
+const widths = {};
+const widthsFor = i => {
+  if (!widths[i]) { try { widths[i] = JSON.parse(localStorage.getItem('tt-w-' + i)) || {}; } catch { widths[i] = {}; } }
+  return widths[i];
+};
+const saveWidths = () => {
+  try { for (const l of Object.keys(widths)) localStorage.setItem('tt-w-' + l, JSON.stringify(widths[l])); } catch {}
+};
+const defaultWidth = c => ({ number: 80, date: 140, checkbox: 60, choice: 130 }[c.type] || 150);
+
+// ---- Excel-style column menu: sort + value checklist ----
+let menuEl = null;
+const closeMenu = () => { if (menuEl) menuEl.remove(); menuEl = null; };
+document.addEventListener('mousedown', e => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
+function openMenu(anchor, c, ui, rows, refresh) {
+  closeMenu();
+  const sortType = c.type === 'checkbox' || c.type === 'choice' ? 'text' : c.type;
+  const distinct = [...new Set([...rows.flatMap(r => keysOf(c, r[c.key])), ...(c.type === 'choice' ? c.options || [] : [])])].sort((a, b) => compare(a, b, sortType));
+  const chosen = new Set(ui.vals[c.key] || distinct);
+  const labels = { number: ['Smallest → largest', 'Largest → smallest'], date: ['Oldest → newest', 'Newest → oldest'] }[c.type] || ['A → Z', 'Z → A'];
+  const m = (menuEl = el('div', { className: 'menu' }));
+  const item = (t, fn) => el('button', { className: 'mi', textContent: t, type: 'button', onclick: () => { fn(); closeMenu(); refresh(); } });
+  m.append(
+    item('Sort ' + labels[0], () => (ui.sort = { key: c.key, dir: 1 })),
+    item('Sort ' + labels[1], () => (ui.sort = { key: c.key, dir: -1 })),
+    item('Clear sort', () => { if (ui.sort && ui.sort.key === c.key) ui.sort = null; }),
+    item('Clear filter', () => { delete ui.vals[c.key]; }),
+    el('hr'),
+  );
+  const aggSel = el('select');
+  aggSel.append(el('option', { value: '', textContent: 'None' }));
+  aggOptions(c).forEach(a => aggSel.append(el('option', { value: a, textContent: c.type === 'checkbox' ? 'Checked' : AGG_LABELS[a] })));
+  aggSel.value = c.agg || '';
+  aggSel.onchange = () => { if (aggSel.value) c.agg = aggSel.value; else delete c.agg; save(); closeMenu(); refresh(); };
+  m.append(el('label', { className: 'aggrow' }, 'Total', aggSel), el('hr'));
+  const q = el('input', { placeholder: 'Search values…' });
+  const list = el('div', { className: 'vals' });
+  const drawList = () => {
+    list.replaceChildren();
+    const term = q.value.toLowerCase();
+    const vis = distinct.filter(v => (v || '(Blanks)').toLowerCase().includes(term));
+    const row = (text, checked, onchange) => {
+      const cb = el('input', { type: 'checkbox', checked, onchange: () => onchange(cb.checked) });
+      return el('label', { className: 'vrow' }, cb, el('span', { textContent: text }));
+    };
+    list.append(row('(Select all)', vis.length > 0 && vis.every(v => chosen.has(v)), on => { vis.forEach(v => (on ? chosen.add(v) : chosen.delete(v))); drawList(); }));
+    vis.forEach(v => list.append(row(v || '(Blanks)', chosen.has(v), on => (on ? chosen.add(v) : chosen.delete(v)))));
+  };
+  q.oninput = drawList;
+  drawList();
+  const ok = el('button', { className: 'primary', type: 'button', textContent: 'OK', onclick: () => {
+    if (chosen.size === distinct.length) delete ui.vals[c.key]; else ui.vals[c.key] = new Set(chosen);
+    closeMenu(); refresh();
+  } });
+  const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: closeMenu });
+  m.append(q, list, el('div', { className: 'mbtns' }, cancel, ok));
+  document.body.append(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.top = r.bottom + 4 + 'px';
+  q.focus();
+}
+
+// Generic grid used for every level: level 0 is the main table, deeper levels are nested sub-record tables.
+function makeGrid(level, rows, ui, opts) {
+  const cols = levels()[level].columns;
+  opts = { ...opts, main: level === 0, subGrid: level + 1 < levels().length };
+  const W = widthsFor(level);
+  const colW = c => W[c.key] || defaultWidth(c);
+  const table = el('table');
+  const countEl = el('span', { className: 'count' });
+  const chips = el('div', { className: 'chips' });
+  const colgroup = el('colgroup');
+  const thead = el('thead'), tbody = el('tbody');
+  const tfoot = el('tfoot');
+  table.append(colgroup, thead, tbody, tfoot);
+  const ID_W = 84;
+  const TOG_W = 34, ACT_W = 30, NOTE_W = 30;
+  const fixedCols = (opts.subGrid ? TOG_W : 0) + ID_W + NOTE_W + ACT_W;
+  const span = cols.length + (opts.subGrid ? 4 : 3);
+  const colEls = {};
+  const applyWidths = () => {
+    table.style.width = fixedCols + cols.reduce((n, c) => n + colW(c), 0) + 'px';
+    cols.forEach(c => (colEls[c.key].style.width = colW(c) + 'px'));
+  };
+
+  if (opts.subGrid) colgroup.append(el('col', { style: 'width:' + TOG_W + 'px' }));
+  colgroup.append(el('col', { style: 'width:' + ID_W + 'px' }));
+  cols.forEach(c => colgroup.append((colEls[c.key] = el('col'))));
+  colgroup.append(el('col', { style: 'width:' + NOTE_W + 'px' }));
+  colgroup.append(el('col', { style: 'width:' + ACT_W + 'px' }));
+
+  const headRow = el('tr');
+  const redraws = [];
+  if (opts.subGrid) headRow.append(el('th', { className: 'tog' }));
+  headRow.append(el('th', { className: 'idh', title: 'Primary key. Sub records join to it by parent_id.' }, el('span', { className: 'lab', textContent: 'ID' })));
+  cols.forEach(c => {
+    const th = el('th', { className: 'h' });
+    const lab = el('span', { className: 'lab' });
+    const dd = el('button', { className: 'dd', type: 'button', textContent: '▾', title: 'Sort and filter' });
+    const draw = () => {
+      const sorted = ui.sort && ui.sort.key === c.key;
+      lab.textContent = c.label + (sorted ? (ui.sort.dir > 0 ? ' ↑' : ' ↓') : '');
+      th.classList.toggle('sorted', !!sorted);
+      dd.classList.toggle('on', !!ui.vals[c.key]);
+    };
+    redraws.push(draw);
+    draw();
+    th.onclick = () => {
+      ui.sort = ui.sort && ui.sort.key === c.key
+        ? (ui.sort.dir > 0 ? { key: c.key, dir: -1 } : null)
+        : { key: c.key, dir: 1 };
+      refresh();
+    };
+    dd.onclick = e => { e.stopPropagation(); openMenu(dd, c, ui, rows, refresh); };
+    const grip = el('div', { className: 'rs', title: 'Drag to resize' });
+    grip.onclick = e => e.stopPropagation();
+    grip.onmousedown = e => {
+      e.preventDefault(); e.stopPropagation();
+      const x0 = e.clientX, w0 = colW(c);
+      const move = ev => { W[c.key] = Math.max(50, w0 + ev.clientX - x0); applyWidths(); };
+      const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); document.body.classList.remove('resizing'); saveWidths(); };
+      document.body.classList.add('resizing');
+      addEventListener('mousemove', move);
+      addEventListener('mouseup', up);
+    };
+    th.append(lab, dd, grip);
+    headRow.append(th);
+  });
+  headRow.append(el('th', { className: 'note', title: 'Meeting minutes' }), el('th', { className: 'act' }));
+  thead.append(headRow);
+  applyWidths();
+
+  const refresh = () => { redraws.forEach(f => f()); body(); };
+
+  function drawChips() {
+    chips.replaceChildren();
+    cols.forEach(c => {
+      const set = ui.vals[c.key];
+      if (!set) return;
+      const chip = el('span', { className: 'chip' }, el('b', { textContent: c.label + ': ' }), el('span', { textContent: set.size + ' selected' }));
+      chip.append(el('button', { type: 'button', textContent: '×', title: 'Clear filter', onclick: () => { delete ui.vals[c.key]; refresh(); } }));
+      chips.append(chip);
+    });
+  }
+
+  function body() {
+    tbody.replaceChildren();
+    drawChips();
+    let list = rows.filter(r => matches(r, cols, ui));
+    if (ui.sort) {
+      const col = cols.find(c => c.key === ui.sort.key);
+      if (col) list = list.slice().sort((a, b) => ui.sort.dir * compare(a[col.key], b[col.key], col.type));
+    }
+    tfoot.replaceChildren();
+    if (cols.some(c => c.agg)) {
+      const fr = el('tr');
+      if (opts.subGrid) fr.append(el('td'));
+      fr.append(el('td'));
+      cols.forEach(c => fr.append(c.agg
+        ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
+        : el('td')));
+      fr.append(el('td'), el('td'));
+      tfoot.append(fr);
+    }
+    countEl.textContent = list.length === rows.length ? rows.length + ' rows' : list.length + ' of ' + rows.length + ' rows';
+    if (!list.length) {
+      const art = el('div', { className: 'art' }, svg(rows.length ? 'M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z' : 'M12 5v14M5 12h14'));
+      tbody.append(el('tr', {}, el('td', { colSpan: span, className: 'empty' }, art,
+        el('b', { textContent: rows.length ? 'Nothing matches' : 'Nothing here yet' }),
+        el('span', { textContent: rows.length ? 'Try clearing a filter or changing your search.' : 'Add a row to get started.' }))));
+    }
+    const firstText = cols.find(c => c.type === 'text');
+    list.forEach(row => {
+      const tr = el('tr');
+      const fired = matchedRules(level, row);
+      if (fired.some(r => r.effect.done)) tr.classList.add('done');
+      const rowTone = fired.find(r => r.effect.apply === 'row' && r.effect.tone);
+      if (rowTone) tr.dataset.tone = rowTone.effect.tone;
+      if (opts.subGrid) {
+        const open = openRows.has(row.id);
+        const n = (row.children || []).length;
+        const tg = el('span', {
+          className: 'toggle' + (open ? ' open' : ''),
+          onclick: () => { open ? openRows.delete(row.id) : openRows.add(row.id); body(); },
+        }, svg('M9 6l6 6-6 6'));
+        tg.dataset.tip = childSummary(level, row) + (n ? '\nClick to ' + (open ? 'hide' : 'show') + ' them.' : '');
+        if (n) tg.append(el('span', { className: 'n', textContent: n }));
+        tr.append(el('td', { className: 'tog' }, tg));
+      }
+      tr.append(el('td', { className: 'idcell', textContent: row.id, title: 'Record ID (click to copy)',
+        onclick: () => { try { navigator.clipboard.writeText(row.id); } catch {} } }));
+      cols.forEach(c => {
+        const td = cell(row, c, cols);
+        if (c === firstText) td.classList.add('strike');
+        fired.filter(r => r.effect.apply === c.key).forEach(r => {   // badge / tint on the cell the rule points at
+          td.classList.add('ruled');
+          if (r.effect.tone) td.dataset.tone = r.effect.tone;
+          if (r.effect.label) { const f = el('span', { className: 'flag', textContent: r.effect.label, title: r.name || '' }); f.dataset.tone = r.effect.tone || 'gray'; td.append(f); }
+        });
+        tr.append(td);
+      });
+      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? 'Meeting minutes (updated ' + fmtWhen(row.minutesUpdated) + ')' : 'Add meeting minutes',
+        onclick: () => openMinutes(row, level, () => { nb.className = hasMinutes(row) ? 'has' : ''; }) },
+        svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5'));
+      tr.append(el('td', { className: 'note' }, nb));
+      tr.append(el('td', { className: 'act' }, el('button', {
+        className: 'link', textContent: '✕', title: 'Delete row',
+        onclick: async () => { if (!await ask('Delete this row?', 'Delete')) return; rows.splice(rows.indexOf(row), 1); save(); opts.onStructure ? opts.onStructure() : body(); },
+      })));
+      tbody.append(tr);
+      if (opts.subGrid && openRows.has(row.id)) {
+        row.children = row.children || [];
+        const sui = uiSub[row.id] || (uiSub[row.id] = { sort: null, vals: {} });
+        const sc = levels()[level + 1].columns;
+        const title = el('div', { className: 'subtitle', textContent: levelTitle(level + 1) });
+        title.append(el('span', { className: 'lvl', textContent: 'parent ' + row.id }));
+        if (hasDoneRule(level + 1) && row.children.length) {
+          const d = row.children.filter(ch => isDoneAt(level + 1, ch)).length;
+          const b = el('span', { className: 'bar2' }, el('i', { style: 'width:' + Math.round(100 * d / row.children.length) + '%' }));
+          title.append(b, el('small', { textContent: d + ' / ' + row.children.length + ' done' }));
+        }
+        const holder = el('td', { colSpan: span, className: 'subcell' }, title);
+        holder.append(makeGrid(level + 1, row.children, sui, { onStructure: body }));
+        tbody.append(el('tr', {}, holder));
+      }
+    });
+  }
+
+  function cell(row, c, cols) {
+    const td = el('td');
+    let inp;
+    if (c.type === 'checkbox') {
+      td.className = 'chk';
+      inp = el('input', { type: 'checkbox', checked: !!row[c.key] });
+      inp.onchange = () => { row[c.key] = inp.checked; save(); body(); };
+      td.append(inp);
+      return td;
+    }
+    if (c.type === 'choice') return choiceCell(row, c);
+    inp = el('input', { type: c.type === 'number' ? 'number' : c.type === 'date' ? 'date' : 'text', value: row[c.key] ?? '' });
+    inp.onchange = () => { row[c.key] = c.type === 'number' && inp.value !== '' ? Number(inp.value) : inp.value; save(); body(); };
+    const decorate = () => {
+      if (isStatusCol(c)) { td.className = 'pillcell'; td.dataset.tone = tone(inp.value); inp.style.width = ''; inp.style.width = Math.max(60, inp.value.length * 7.5 + 28) + 'px'; }
+      else if (isPersonCol(c)) {
+        td.className = 'person';
+        td.querySelector('.av')?.remove();
+        const av = avatar(inp.value.trim());
+        if (inp.value.trim()) { av.style.cursor = 'pointer'; av.onclick = e => { e.stopPropagation(); openAvatarMenu(av, inp.value.trim()); }; }
+        td.prepend(av);
+      } else if (c.type === 'date') td.className = 'datecell';
+      else if (c.type === 'number') td.className = 'num';
+    };
+    td.append(inp);
+    decorate();
+    return td;
+  }
+
+  function choiceCell(row, c) {
+    const options = c.options || [];
+    if (!isMulti(c)) {
+      const td = el('td', { className: 'choice' });
+      const sel = el('select');
+      sel.append(el('option', { value: '', textContent: '—' }));
+      const cur = Array.isArray(row[c.key]) ? row[c.key].join(', ') : String(row[c.key] ?? '');   // a column switched from multi keeps its old values visible
+      if (cur && !options.includes(cur)) sel.append(el('option', { value: cur, textContent: cur }));
+      options.forEach(o => sel.append(el('option', { value: o, textContent: o })));
+      sel.value = cur;
+      const paint = () => { td.dataset.tone = sel.value ? optionTone(c, sel.value) : ''; sel.classList.toggle('blank', !sel.value); };
+      sel.onchange = () => { row[c.key] = sel.value; save(); body(); };
+      paint();
+      td.append(sel);
+      return td;
+    }
+    const td = el('td', { className: 'multi', title: 'Click to choose' });
+    const pills = el('div', { className: 'pills' });
+    const paint = () => {
+      pills.replaceChildren();
+      multiVals(row[c.key]).forEach(v => pills.append(el('span', { className: 'pill', textContent: v })));
+      pills.querySelectorAll('.pill').forEach(p => (p.dataset.tone = optionTone(c, p.textContent)));
+      pills.append(el('span', { className: 'add', textContent: '+' }));
+    };
+    paint();
+    td.append(pills);
+    td.onclick = () => {
+      closeMenu();
+      const chosen = new Set(multiVals(row[c.key]));
+      const all = [...new Set([...options, ...chosen])];
+      const m = (menuEl = el('div', { className: 'menu' }));
+      const list = el('div', { className: 'vals' });
+      let dirty = false; const refreshRow = () => (dirty = true);
+      all.forEach(o => {
+        const cb = el('input', { type: 'checkbox', checked: chosen.has(o) });
+        cb.onchange = () => { cb.checked ? chosen.add(o) : chosen.delete(o); row[c.key] = all.filter(x => chosen.has(x)); save(); paint(); refreshRow(); };
+        list.append(el('label', { className: 'vrow' }, cb, el('span', { textContent: o })));
+      });
+      if (!all.length) list.append(el('div', { className: 'aggrow', textContent: 'No options yet. Add some in Configure columns.' }));
+      m.append(list, el('div', { className: 'mbtns' }, el('button', { type: 'button', className: 'primary', textContent: 'Done', onclick: closeMenu })));
+      td.classList.add('editing');
+      const obs = new MutationObserver(() => { if (!document.body.contains(m)) { td.classList.remove('editing'); obs.disconnect(); if (dirty) body(); } });
+      obs.observe(document.body, { childList: true });
+      document.body.append(m);
+      const r = td.getBoundingClientRect();
+      m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+      m.style.top = r.bottom + 4 + 'px';
+    };
+    return td;
+  }
+
+  body();
+  const addRow = () => {
+    const r = { id: uid() };
+    cols.forEach(c => (r[c.key] = c.type === 'checkbox' ? false : isMulti(c) ? [] : ''));
+    if (opts.subGrid) r.children = [];
+    rows.push(r); save();
+    opts.onStructure ? opts.onStructure() : body();
+  };
+  const wrap = el('div', { className: 'card' });
+  if (opts.main) {
+    const search = el('input', { type: 'search', placeholder: 'Search all columns…', value: ui.search || '' });
+    search.oninput = () => { ui.search = search.value; body(); };
+    const sbox = el('div', { className: 'search' }, svg('M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z'), search);
+    wrap.append(el('div', { className: 'toolbar' }, sbox, chips, countEl));
+    window.addMainRow = addRow;
+    wrap.append(el('div', { className: 'scroll' }, table));
+  } else {
+    wrap.append(el('div', { className: 'scroll' }, table));
+    wrap.append(el('div', { className: 'bar' }, el('button', { className: 'ghost', textContent: '+ Add row', onclick: addRow }), countEl));
+  }
+  return wrap;
+}
+
+// ---- KPI tiles: one per column that has a total configured (column menu → Total) ----
+const ICONS = { count: 'M4 12.5l5 5L20 6.5', distinct: 'M8 8h13M8 12h13M8 16h13M3 8h.01M3 12h.01M3 16h.01', sum: 'M18 4H6l7 8-7 8h12', avg: 'M3 17l6-6 4 4 8-8M21 7v4h-4', min: 'M12 5v14m0 0l-5-5m5 5l5-5', max: 'M12 19V5m0 0l-5 5m5-5l5 5', date: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z' };
+const PALETTE = ['var(--green)', 'var(--blue)', 'var(--amber)', 'var(--accent-2)', 'var(--accent-3)', 'var(--pink)', 'var(--teal)'];
+function renderKpis() {
+  const box = document.getElementById('kpis');
+  if (!box) return;
+  const rows = state.rows;
+  const ring = (pct, color) => {
+    const r = 18, c = 2 * Math.PI * r;
+    const s = el('span'); s.innerHTML = `<svg class="ring" viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="${r}"/><circle class="fg" cx="22" cy="22" r="${r}" stroke-dasharray="${c}" stroke-dashoffset="${c}"/></svg>`;
+    const fg = s.firstChild.querySelector('.fg');
+    requestAnimationFrame(() => requestAnimationFrame(() => (fg.style.strokeDashoffset = c * (1 - pct))));
+    return s.firstChild;
+  };
+  const tile = (label, value, color, icon, pct) => {
+    const t = el('div', { className: 'kpi' });
+    t.style.setProperty('--kc', color);
+    t.append(el('div', { className: 'ico' }, svg(icon)), el('div', {}, el('div', { className: 'v', textContent: value }), el('div', { className: 'l', textContent: label })));
+    if (pct != null) t.append(ring(pct, color));
+    return t;
+  };
+  // A choice column counted: the total on top, then one line per option with its share of the filled cells.
+  // Clicking a pill on a top-level column filters the grid by that choice (click again to remove it).
+  const breakdown = (c, list, label, total, color, depth) => {
+    const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]).filter(v => v !== '' && v != null);
+    const counts = {};
+    vals.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+    const names = [...new Set([...(c.options || []), ...Object.keys(counts)])];
+    const t = tile(label, total, color, ICONS.count);
+    t.classList.add('split');
+    const toneVar = o => `var(--${optionTone(c, o) || 'gray'})`;
+    const stack = el('div', { className: 'stack' });
+    names.filter(o => counts[o]).forEach(o => {
+      const seg = el('span', { title: o + ': ' + counts[o] });
+      seg.style.width = (counts[o] / total * 100) + '%';
+      seg.style.background = toneVar(o);
+      stack.append(seg);
+    });
+    const legend = el('div', { className: 'legend' });
+    const active = depth === 0 ? uiMain.vals[c.key] : null;
+    names.forEach(o => {
+      const item = el(depth === 0 ? 'button' : 'span', { className: 'pill', textContent: o });
+      item.dataset.tone = optionTone(c, o);
+      item.append(el('b', { textContent: counts[o] || 0 }));
+      if (depth === 0) {
+        item.type = 'button';
+        item.classList.toggle('on', !!(active && active.has(o)));
+        const only = active && active.size === 1 && active.has(o);
+        item.dataset.tip = (only ? 'Clear filter' : 'Show only ' + c.label + ': ' + o) + '\n' + (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '-click to add or remove from the selection';
+        item.onclick = e => {
+          let set;
+          if (e.ctrlKey || e.metaKey) {                       // add to / remove from the current selection
+            set = uiMain.vals[c.key] || new Set();
+            set.has(o) ? set.delete(o) : set.add(o);
+          } else set = only ? new Set() : new Set([o]);       // plain click: just this one (again to clear)
+          if (set.size) uiMain.vals[c.key] = set; else delete uiMain.vals[c.key];
+          render();
+        };
+      }
+      legend.append(item);
+    });
+    if (active) t.classList.add('filtering');
+    if (!names.length) legend.append(el('span', { className: 'none', textContent: 'No choices yet' }));
+    t.append(el('div', { className: 'opts' }, stack, legend));
+    return t;
+  };
+  box.replaceChildren();
+  box.append(tile('Total rows', rows.length, 'var(--accent)', 'M3 7h18M3 12h18M3 17h18'));
+  let i = 0;
+  const addTiles = (cols, list, prefix, depth) => cols.filter(c => c.agg).forEach(c => {
+    const color = PALETTE[i++ % PALETTE.length];
+    const v = aggregate(c, list);
+    const label = prefix + c.label + ' · ' + (c.type === 'checkbox' ? 'checked' : AGG_LABELS[c.agg].toLowerCase());
+    if (c.type === 'checkbox') box.append(tile(label, v + ' / ' + list.length, color, ICONS.count, list.length ? v / list.length : 0));
+    else if (c.type === 'choice' && c.agg === 'count') box.append(breakdown(c, list, label, v, color, depth));
+    else box.append(tile(label, v === '' ? '—' : v, color, c.type === 'date' ? ICONS.date : ICONS[c.agg]));
+  });
+  levels().forEach((lvl, i) => addTiles(lvl.columns, flattenLevel(rows, i), i ? levelTitle(i) + ' · ' : '', i));
+}
+
+function render() {
+  document.getElementById('title').textContent = state.config.title || 'Track Things';
+  document.title = state.config.title || 'Track Things';
+  const main = document.getElementById('main');
+  main.replaceChildren();
+  main.append(el('div', { className: 'kpis', id: 'kpis' }));
+  renderKpis();
+  main.append(makeGrid(0, state.rows, uiMain, { onStructure: render }));
+}
+
+// ---- meeting minutes: rich text per record, edited in a dialog with Edit / Preview tabs ----
+const hasMinutes = r => !!(r.minutes && r.minutes.replace(/<[^>]+>|&nbsp;|\s/g, ''));
+const fmtWhen = iso => iso ? new Date(iso).toLocaleString() : 'just now';
+const ALLOWED_TAGS = new Set(['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'A', 'CODE', 'PRE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'HR', 'DIV', 'SPAN', 'SUB', 'SUP']);
+// Keep only harmless markup: known tags, and href links that are not javascript:.
+function sanitizeHtml(html) {
+  const doc = new DOMParser().parseFromString('<body>' + (html || ''), 'text/html');
+  const walk = node => {
+    [...node.childNodes].forEach(ch => {
+      if (ch.nodeType === 1) {
+        if (!ALLOWED_TAGS.has(ch.tagName)) { ch.replaceWith(...ch.childNodes); walk(node); return; }
+        [...ch.attributes].forEach(a => {
+          const ok = a.name === 'href' && ch.tagName === 'A' && /^(https?:|mailto:|#|\/)/i.test(a.value.trim());
+          if (!ok) ch.removeAttribute(a.name);
+        });
+        if (ch.tagName === 'A') { ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener'); }
+        walk(ch);
+      } else if (ch.nodeType !== 3) ch.remove();
+    });
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
+function recordName(row, level) {
+  const c = levels()[level].columns.find(c => c.type === 'text' && row[c.key]);
+  return c ? String(row[c.key]) : 'Record';
+}
+function openMinutes(row, level, onClose) {
+  const d = document.getElementById('dlg');
+  d.className = 'minutes';
+  const original = row.minutes || '';
+  const editor = el('div', { className: 'rt', contentEditable: 'true', spellcheck: true });
+  editor.setAttribute('data-placeholder', 'Type the minutes here. Headings, lists, links and tables are kept.');
+  editor.innerHTML = sanitizeHtml(original);
+  const preview = el('div', { className: 'rt-preview' });
+  const body = el('div', { className: 'rt-body' }, editor);
+  const cmd = (name, arg) => () => { editor.focus(); document.execCommand(name, false, arg); };
+  const tb = el('div', { className: 'rt-toolbar' });
+  const btn = (label, title, fn) => el('button', { type: 'button', textContent: label, title, onmousedown: e => e.preventDefault(), onclick: fn });
+  tb.append(
+    btn('B', 'Bold', cmd('bold')), btn('I', 'Italic', cmd('italic')), btn('U', 'Underline', cmd('underline')), btn('S̶', 'Strikethrough', cmd('strikeThrough')),
+    el('span', { className: 'sep' }),
+    btn('H1', 'Heading', cmd('formatBlock', '<h1>')), btn('H2', 'Sub heading', cmd('formatBlock', '<h2>')), btn('H3', 'Small heading', cmd('formatBlock', '<h3>')), btn('¶', 'Paragraph', cmd('formatBlock', '<p>')),
+    el('span', { className: 'sep' }),
+    btn('• List', 'Bullet list', cmd('insertUnorderedList')), btn('1. List', 'Numbered list', cmd('insertOrderedList')), btn('❝', 'Quote', cmd('formatBlock', '<blockquote>')), btn('—', 'Divider', cmd('insertHorizontalRule')),
+    el('span', { className: 'sep' }),
+    btn('Link', 'Insert link', () => { const u = prompt('Link address (https://…)'); if (u) cmd('createLink', u)(); }),
+    btn('Table', 'Insert a 3×3 table', cmd('insertHTML', '<table><tr><th>&nbsp;</th><th>&nbsp;</th><th>&nbsp;</th></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></table><p></p>')),
+    btn('Date', 'Insert today\'s date', cmd('insertText', new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))),
+    btn('Clear', 'Remove formatting', cmd('removeFormat')),
+    el('span', { className: 'sep' }),
+    btn('↶', 'Undo', cmd('undo')), btn('↷', 'Redo', cmd('redo')),
+  );
+  const tabEdit = el('button', { type: 'button', className: 'tab on', textContent: 'Edit' });
+  const tabPrev = el('button', { type: 'button', className: 'tab', textContent: 'Preview' });
+  const show = which => {
+    tabEdit.classList.toggle('on', which === 'edit'); tabPrev.classList.toggle('on', which === 'preview');
+    tb.style.display = which === 'edit' ? '' : 'none';
+    body.replaceChildren(which === 'edit' ? editor : preview);
+    if (which === 'preview') {
+      const html = sanitizeHtml(editor.innerHTML);
+      const empty = !html.replace(/<[^>]+>|&nbsp;|\s/g, '');
+      preview.classList.toggle('empty', empty);
+      preview.innerHTML = empty ? 'Nothing written yet.' : html;
+    } else editor.focus();
+  };
+  tabEdit.onclick = () => show('edit'); tabPrev.onclick = () => show('preview');
+  const meta = el('span', { className: 'meta', textContent: hasMinutes(row) ? 'Last updated ' + fmtWhen(row.minutesUpdated) : 'No minutes yet' });
+  const close = () => { d.close(); };
+  const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: async () => { if (editor.innerHTML !== sanitizeHtml(original) && !await ask('Discard your changes to these minutes?', 'Discard')) return; close(); } });
+  const clear = el('button', { type: 'button', className: 'ghost', textContent: 'Delete minutes', onclick: async () => { if (!await ask('Delete the minutes for this record?', 'Delete')) return; row.minutes = ''; delete row.minutesUpdated; save(); close(); } });
+  const ok = el('button', { type: 'button', className: 'primary', textContent: 'Save minutes', onclick: () => {
+    row.minutes = sanitizeHtml(editor.innerHTML);
+    if (hasMinutes(row)) row.minutesUpdated = new Date().toISOString(); else { row.minutes = ''; delete row.minutesUpdated; }
+    save(); close();
+  } });
+  d.replaceChildren(
+    el('div', { className: 'mn-head' }, el('h2', {}, 'Minutes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) })), el('span', { className: 'id', textContent: row.id })),
+    el('div', { className: 'tabs' }, tabEdit, tabPrev),
+    tb, body,
+    el('div', { className: 'mn-foot' }, meta, ...(hasMinutes(row) ? [clear] : []), cancel, ok));
+  d.onclose = () => { d.className = ''; d.onclose = null; onClose && onClose(); };
+  d.showModal();
+  editor.focus();
+}
+
+// ---- column configuration dialog ----
+const dlg = document.getElementById('dlg');
+document.getElementById('cfgBtn').onclick = openConfig;
+document.getElementById('newBtn').onclick = () => window.addMainRow && window.addMainRow();
+
+function openConfig() {
+  const draft = JSON.parse(JSON.stringify(state.config));
+  const form = el('form', { method: 'dialog' });
+  const titleIn = el('input', { value: draft.title || '' });
+  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the tracker and shape its columns. Every record has an ID; each nesting level joins to its parent by that ID.' }));
+  form.append(el('h3', { textContent: 'Title' }), el('div', { className: 'crow' }, titleIn));
+
+  // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
+  // Names are free text in the grid; this list only controls how each one looks (and lets you rename one everywhere).
+  draft.people = (draft.people || []).map(p => ({ ...p, _was: p.name }));
+  namesInUse().forEach(n => { if (!draft.people.some(p => p.name.toLowerCase() === n.toLowerCase())) draft.people.push({ name: n, _auto: true }); });
+  const pplBox = el('div');
+  const drawPeople = () => {
+    pplBox.replaceChildren();
+    draft.people.forEach((p, i) => {
+      const av = el('span', { className: 'av' });
+      const paintAv = () => {
+        av.textContent = p.initials || initialsOf(p.name);
+        av.style.background = p.color ? 'var(--' + p.color + ')' : p.name ? `linear-gradient(135deg, hsl(${hashHue(p.name)} 70% 55%), hsl(${(hashHue(p.name) + 40) % 360} 70% 45%))` : 'var(--faint)';
+        sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === (p.color || '')));
+      };
+      const nm = el('input', { type: 'text', className: 'nm', value: p.name || '', placeholder: 'Full name' });
+      nm.oninput = () => { p.name = nm.value; paintAv(); };
+      const ini = el('input', { type: 'text', className: 'ini', value: p.initials || '', placeholder: initialsOf(p.name), maxLength: 3, title: 'Initials shown on the avatar' });
+      ini.oninput = () => { p.initials = ini.value.trim().toUpperCase(); paintAv(); };
+      const sw = el('div', { className: 'sw' });
+      TONES.forEach(t => sw.append(el('button', { type: 'button', title: t === 'gray' ? 'Grey' : t === 'accent' ? 'Purple' : t[0].toUpperCase() + t.slice(1), onclick: () => { p.color = t; paintAv(); } })));
+      sw.querySelectorAll('button').forEach((b, k) => { b.dataset.t = TONES[k]; b.style.setProperty('--c', 'var(--' + TONES[k] + ')'); });
+      const auto = el('button', { type: 'button', className: 'x', textContent: 'auto', title: 'Let the app pick a colour', onclick: () => { delete p.color; paintAv(); } });
+      const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this person', onclick: () => { draft.people.splice(i, 1); drawPeople(); } });
+      paintAv();
+      pplBox.append(el('div', { className: 'pplrow' }, av, nm, ini, sw, auto, del));
+    });
+    const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add person', onclick: () => { draft.people.push({ name: '' }); drawPeople(); pplBox.querySelector('.pplrow:last-of-type .nm')?.focus(); } });
+    pplBox.append(el('div', { className: 'pplrow' }, add));
+  };
+  drawPeople();
+  form.append(el('h3', { textContent: 'People' }), el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Names typed into owner-style columns are listed here automatically. Set the avatar colour and initials for each, or rename someone everywhere.' }), pplBox);
+
+  const section = (heading, list, titleInput) => {
+    const box = el('div');
+    const draw = () => {
+      box.replaceChildren();
+      list.forEach((c, i) => {
+        const name = el('input', { value: c.label, placeholder: 'Column name' });
+        name.oninput = () => (c.label = name.value);
+        const type = el('select');
+        TYPES.forEach(t => type.append(el('option', { value: t, textContent: TYPE_LABELS[t], selected: t === c.type })));
+        type.onchange = () => { c.type = type.value; draw(); };
+        const up = el('button', { type: 'button', textContent: '↑', disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } });
+        const del = el('button', { type: 'button', textContent: '✕', onclick: () => { list.splice(i, 1); draw(); } });
+        box.append(el('div', { className: 'crow' }, el('span', { className: 'grip', textContent: '⋮' }), name, type, up, del));
+        suggestBehaviour(c, list);
+        const setting = (...kids) => box.append(el('div', { className: 'crow opts' }, ...kids));
+        const small = t => el('span', { style: 'color:var(--muted);font-size:12.5px;white-space:nowrap', textContent: t });
+        if (c.type === 'text') {
+          const look = el('select');
+          [['plain', 'Plain text'], ['status', 'Status pill (coloured by value)'], ['person', 'Person (avatar with initials)']].forEach(([v, t]) => look.append(el('option', { value: v, textContent: t, selected: c.look === v })));
+          look.onchange = () => (c.look = look.value);
+          setting(small('Show as'), look);
+        }
+        if (c.type === 'choice') {
+          c.options = c.options || []; c.colors = c.colors || {};
+          const list = el('div', { className: 'optlist' });
+          const drawOpts = () => {
+            list.replaceChildren();
+            c.options.forEach((o, k) => {
+              const name = el('input', { type: 'text', value: o, placeholder: 'Choice' });
+              const prev = el('span', { className: 'prev', textContent: o || 'Choice' });
+              const sw = el('div', { className: 'sw' });
+              const paint = () => { prev.dataset.tone = optionTone(c, c.options[k]); prev.textContent = c.options[k] || 'Choice'; sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === (c.colors[c.options[k]] || ''))); };
+              TONES.forEach(t => sw.append(el('button', { type: 'button', title: t === 'gray' ? 'Grey' : t === 'accent' ? 'Purple' : t[0].toUpperCase() + t.slice(1),
+                onclick: () => { if (c.options[k]) c.colors[c.options[k]] = t; paint(); } })));
+              sw.querySelectorAll('button').forEach((b, i) => { b.dataset.t = TONES[i]; b.style.setProperty('--c', 'var(--' + (TONES[i] === 'accent' ? 'accent' : TONES[i]) + ')'); });
+              const auto = el('button', { type: 'button', className: 'x', textContent: 'auto', title: 'Let the app pick a colour', onclick: () => { delete c.colors[c.options[k]]; paint(); } });
+              name.oninput = () => { const old = c.options[k]; c.options[k] = name.value.trim(); if (c.colors[old] && old !== c.options[k]) { c.colors[c.options[k]] = c.colors[old]; delete c.colors[old]; } paint(); };
+              const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this choice', onclick: () => { delete c.colors[c.options[k]]; c.options.splice(k, 1); drawOpts(); } });
+              paint();
+              list.append(el('div', { className: 'optrow' }, el('span', { className: 'drag', textContent: '·' }), name, prev, sw, auto, del));
+            });
+            const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add choice', onclick: () => { c.options.push(''); drawOpts(); list.querySelector('.optrow:last-of-type input')?.focus(); } });
+            const multi = el('input', { type: 'checkbox', checked: !!c.multi });
+            multi.onchange = () => (c.multi = multi.checked);
+            list.append(el('div', { className: 'optrow' }, add, el('span', { style: 'flex:1' }), el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)' }, multi, 'Allow multiple')));
+          };
+          drawOpts();
+          box.append(list);
+        }
+      });
+      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); } }));
+    };
+    draw();
+    return [el('h3', { textContent: heading }), ...(titleInput ? [el('div', { className: 'crow' }, titleInput)] : []), box];
+  };
+
+  // Rules editor for one level: each rule is "when all of these hold → do this".
+  function rulesEditor(lvl) {
+    lvl.rules = lvl.rules || [];
+    const box = el('div');
+    const colsOf = () => lvl.columns.filter(c => c.label.trim()).map(c => ({ key: c.key || c.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'), label: c.label.trim(), type: c.type }));
+    const draw = () => {
+      box.replaceChildren();
+      lvl.rules.forEach((rule, ri) => {
+        rule.when = rule.when || []; rule.effect = rule.effect || { apply: 'row', tone: '' };
+        const card = el('div', { className: 'rule' });
+        const name = el('input', { value: rule.name || '', placeholder: 'Rule name (e.g. Overdue)' });
+        name.oninput = () => (rule.name = name.value);
+        card.append(el('div', { className: 'rhead' }, name, el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Delete rule', onclick: () => { lvl.rules.splice(ri, 1); draw(); } })));
+        const cols = colsOf();
+        rule.when.forEach((w, wi) => {
+          const colSel = el('select');
+          cols.forEach(c => colSel.append(el('option', { value: c.key, textContent: c.label, selected: c.key === w.col })));
+          if (!cols.some(c => c.key === w.col) && cols[0]) w.col = cols[0].key;
+          const opSel = el('select');
+          const val = el('input', { value: w.value ?? '', placeholder: 'value' });
+          const fillOps = () => {
+            const c = cols.find(x => x.key === colSel.value) || cols[0];
+            opSel.replaceChildren();
+            (OPS[c ? c.type : 'text'] || OPS.text).forEach(([v, t]) => opSel.append(el('option', { value: v, textContent: t, selected: v === w.op })));
+            if (![...opSel.options].some(o => o.value === w.op)) { w.op = opSel.options[0].value; opSel.value = w.op; }
+            val.style.display = OP_NEEDS_VALUE.has(w.op) ? '' : 'none';
+            val.type = c && c.type === 'date' && ['before', 'after', 'eq'].includes(w.op) ? 'date' : c && (c.type === 'number' || (c.type === 'date')) ? 'number' : 'text';
+            if (c && c.type === 'date' && ['before', 'after', 'eq'].includes(w.op)) val.type = 'date';
+          };
+          colSel.onchange = () => { w.col = colSel.value; fillOps(); };
+          opSel.onchange = () => { w.op = opSel.value; fillOps(); };
+          val.oninput = () => (w.value = val.value);
+          fillOps();
+          card.append(el('div', { className: 'cond' }, el('span', { className: 'kw', textContent: wi === 0 ? 'when' : 'and' }), colSel, opSel, val,
+            el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove condition', onclick: () => { rule.when.splice(wi, 1); draw(); } })));
+        });
+        card.append(el('div', { className: 'cond' }, el('span', { className: 'kw' }), el('button', { type: 'button', className: 'ghost', textContent: '+ condition', onclick: () => { rule.when.push({ col: cols[0] ? cols[0].key : '', op: '' }); draw(); } })));
+        // effect
+        const e = rule.effect;
+        const apply = el('select');
+        apply.append(el('option', { value: 'row', textContent: 'the whole row' }));
+        cols.forEach(c => apply.append(el('option', { value: c.key, textContent: 'the "' + c.label + '" cell', selected: c.key === e.apply })));
+        if (![...apply.options].some(o => o.value === e.apply)) e.apply = 'row';
+        apply.value = e.apply;
+        const label = el('input', { type: 'text', value: e.label || '', placeholder: 'badge text (optional)', style: 'width:150px' });
+        label.oninput = () => (e.label = label.value);
+        const sw = el('div', { className: 'sw' });
+        const paintSw = () => sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.t || '') === (e.tone || '')));
+        sw.append(el('button', { type: 'button', className: 'none', title: 'No colour', onclick: () => { e.tone = ''; paintSw(); } }));
+        TONES.forEach(t => { const b = el('button', { type: 'button', title: t, onclick: () => { e.tone = t; paintSw(); } }); b.dataset.t = t; b.style.setProperty('--c', 'var(--' + t + ')'); sw.append(b); });
+        paintSw();
+        const done = el('input', { type: 'checkbox', checked: !!e.done });
+        done.onchange = () => (e.done = done.checked);
+        apply.onchange = () => { e.apply = apply.value; label.style.display = apply.value === 'row' ? 'none' : ''; };
+        label.style.display = e.apply === 'row' ? 'none' : '';
+        card.append(el('div', { className: 'eff' }, el('span', { className: 'kw', textContent: 'then' }), el('span', { textContent: 'colour' }), sw, apply, label,
+          el('label', { title: 'Greys the row, strikes the first text column, and counts towards progress bars and done totals' }, done, 'counts as done')));
+        box.append(card);
+      });
+      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add rule', onclick: () => { lvl.rules.push({ name: '', when: [{ col: colsOf()[0] ? colsOf()[0].key : '', op: '' }], effect: { apply: 'row', tone: '' } }); draw(); } }));
+    };
+    draw();
+    return box;
+  }
+
+  const levelsBox = el('div');
+  const titleInputs = [];
+  const drawLevels = () => {
+    levelsBox.replaceChildren();
+    titleInputs.length = 0;
+    draft.levels.forEach((lvl, i) => {
+      const t = el('input', { value: lvl.title || '', placeholder: i ? 'Sub record name (e.g. Items)' : 'Main record name' });
+      titleInputs.push(t);
+      const heading = i === 0 ? 'Main records' : 'Level ' + (i + 1) + ' sub records' + (i > 1 ? ' (nested inside level ' + i + ')' : '');
+      levelsBox.append(...section(heading, lvl.columns, t));
+      levelsBox.append(el('h3', { textContent: (lvl.title || heading) + ' · rules', style: 'margin-top:14px' }), rulesEditor(lvl));
+      if (i > 0 && i === draft.levels.length - 1) {
+        levelsBox.append(el('button', { type: 'button', className: 'ghost', textContent: '− Remove this level', onclick: async () => {
+          if (!await ask('Remove level ' + (i + 1) + '? All records at this level will be deleted when you save.', 'Remove')) return;
+          draft.levels.pop(); drawLevels();
+        } }));
+      }
+    });
+    levelsBox.append(el('button', { type: 'button', className: 'primary', textContent: '+ Add a sub record level', onclick: () => {
+      draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] }); drawLevels();
+    } }));
+  };
+  drawLevels();
+  form.append(levelsBox);
+  const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: () => dlg.close() });
+  const ok = el('button', { className: 'primary', textContent: 'Save', type: 'submit' });
+  form.append(el('div', { className: 'dlgbtns' }, cancel, ok));
+  form.onsubmit = () => {
+    const finish = list => {
+      const used = new Set();
+      return list.filter(c => c.label.trim()).map(c => {
+        let key = c.key || c.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'col';
+        while (used.has(key) && !c.key) key += '_';
+        used.add(key);
+        const out = { key, label: c.label.trim(), type: c.type };
+        if (c.type === 'text') out.look = c.look || 'plain';
+        if (c.type === 'choice') {
+          out.options = [...new Set((c.options || []).map(o => o.trim()).filter(Boolean))];
+          const colors = {}; out.options.forEach(o => { if (c.colors && TONES.includes(c.colors[o])) colors[o] = c.colors[o]; });
+          if (Object.keys(colors).length) out.colors = colors;
+          if (c.multi) out.multi = true;
+        }
+        if (c.agg && aggOptions(out).includes(c.agg)) out.agg = c.agg;
+        return out;
+      });
+    };
+    const renames = new Map();
+    const seenNames = new Set();
+    const newPeople = draft.people.map(p => ({ name: p.name.trim(), email: (p.email || '').trim(), initials: (p.initials || '').trim().toUpperCase(), color: p.color, _was: p._was }))
+      .filter(p => p.name && !seenNames.has(p.name.toLowerCase()) && seenNames.add(p.name.toLowerCase()))
+      .map(p => {
+        if (p._was && p._was !== p.name) renames.set(p._was, p.name);
+        const out = { name: p.name };
+        if (p.initials) out.initials = p.initials;
+        if (TONES.includes(p.color)) out.color = p.color;
+        return out;
+      });
+    const finishRules = (rules, cols) => (rules || []).map(r => ({
+      name: (r.name || '').trim(),
+      when: (r.when || []).filter(w => cols.some(c => c.key === w.col) && w.op).map(w => ({ col: w.col, op: w.op, ...(OP_NEEDS_VALUE.has(w.op) ? { value: w.value ?? '' } : {}) })),
+      effect: { apply: r.effect && (r.effect.apply === 'row' || cols.some(c => c.key === r.effect.apply)) ? r.effect.apply : 'row', tone: r.effect && TONES.includes(r.effect.tone) ? r.effect.tone : '', label: (r.effect && r.effect.label || '').trim(), done: !!(r.effect && r.effect.done) },
+    })).filter(r => r.when.length);
+    const newLevels = draft.levels.map((lvl, i) => { const columns = finish(lvl.columns); return { title: titleInputs[i].value.trim() || (i ? 'Level ' + (i + 1) : 'Rows'), columns, rules: finishRules(lvl.rules, columns) }; })
+      .filter((lvl, i) => i === 0 || lvl.columns.length);
+    // Records deeper than the remaining levels are dropped.
+    const prune = (rows, depth) => rows.forEach(r => { if (depth + 1 >= newLevels.length) delete r.children; else prune(r.children || [], depth + 1); });
+    prune(state.rows, 0);
+    if (renames.size) {   // a renamed person is renamed everywhere they are assigned
+      const fix = v => Array.isArray(v) ? v.map(n => renames.get(n) || n) : (renames.get(v) || v);
+      newLevels.forEach((lvl, d) => flattenLevel(state.rows, d).forEach(r => lvl.columns.forEach(c => { if (isPersonCol(c) && r[c.key] != null) r[c.key] = fix(r[c.key]); })));
+    }
+    state.config = { title: titleIn.value.trim() || 'Track Things', people: newPeople, levels: newLevels };
+    save(); render();
+  };
+  dlg.className = '';
+  dlg.replaceChildren(form);
+  dlg.showModal();
+}
+
+fetch('/api/state').then(r => r.json()).then(s => { state = s; render(); });
+</script>
+</body>
+</html>
