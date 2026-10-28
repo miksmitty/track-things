@@ -85,7 +85,7 @@
   td.pillcell[data-tone=pink] input { background:var(--pink-soft); color:var(--pink); }
   td.pillcell[data-tone=teal] input { background:var(--teal-soft); color:var(--teal); }
 
-  /* meeting minutes */
+  /* notes (rich text per record; stored in the `minutes` field) */
   th.note, td.note { width:30px; text-align:center; }
   td.note button { border:none; background:none; padding:3px 5px; border-radius:7px; color:var(--faint); cursor:pointer; display:inline-grid; place-items:center; }
   td.note button svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
@@ -221,7 +221,7 @@
   /* expand toggle */
   .tip { position:fixed; z-index:50; background:var(--text); color:var(--bg); padding:7px 10px; border-radius:9px; font-size:12px; line-height:1.4; max-width:300px; white-space:pre-line; box-shadow:0 10px 30px -10px rgba(0,0,0,.5); pointer-events:none; opacity:0; transform:translateY(-3px); transition:opacity .12s, transform .12s; }
   .tip.on { opacity:1; transform:none; }
-  /* hover preview of a record's meeting minutes */
+  /* hover preview of a record's notes */
   .peek { position:fixed; z-index:50; width:min(420px, calc(100vw - 16px)); background:var(--panel-solid); color:var(--text); border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 24px 60px -12px rgba(0,0,0,.45); pointer-events:none; opacity:0; transform:translateY(-3px); transition:opacity .12s, transform .12s; overflow:hidden; }
   .peek.on { opacity:1; transform:none; }
   .peek .ph { display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--line); font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); background:var(--head); }
@@ -411,7 +411,7 @@ const placeNear = (box, t) => {
   box.style.left = x + 'px'; box.style.top = y + 'px';
 };
 document.addEventListener('mouseover', e => {
-  const pk = e.target.closest ? e.target.closest('[data-peek]') : null;   // minutes icon: show the formatted minutes
+  const pk = e.target.closest ? e.target.closest('[data-peek]') : null;   // notes icon: show the formatted notes
   if (pk && pk !== peekFor && pk._peek) {
     peekFor = pk;
     const { html, title, when } = pk._peek();
@@ -781,7 +781,7 @@ function makeGrid(level, rows, ui, opts) {
     th.append(lab, dd, grip);
     headRow.append(th);
   });
-  headRow.append(el('th', { className: 'note', title: 'Meeting minutes' }), el('th', { className: 'act' }));
+  headRow.append(el('th', { className: 'note', title: 'Notes' }), el('th', { className: 'act' }));
   thead.append(headRow);
   applyWidths();
 
@@ -888,10 +888,10 @@ function makeGrid(level, rows, ui, opts) {
         });
         tr.append(td);
       });
-      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? '' : 'Add meeting minutes',
+      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? '' : 'Add notes',
         onclick: () => openMinutes(row, level, () => { nb.className = hasMinutes(row) ? 'has' : ''; }) },
         svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5'));
-      if (hasMinutes(row)) { nb.dataset.peek = '1'; nb._peek = () => ({ html: sanitizeHtml(row.minutes), title: 'Minutes · ' + recordName(row, level), when: 'updated ' + fmtWhen(row.minutesUpdated) }); }
+      if (hasMinutes(row)) { nb.dataset.peek = '1'; nb._peek = () => ({ html: sanitizeHtml(row.minutes), title: 'Notes · ' + recordName(row, level), when: 'updated ' + fmtWhen(row.minutesUpdated) }); }
       tr.append(el('td', { className: 'note' }, nb));
       tr.append(el('td', { className: 'act' }, el('button', {
         className: 'link', textContent: '✕', title: 'Delete row',
@@ -1183,7 +1183,7 @@ function render() {
   main.append(makeGrid(0, state.rows, uiMain, { onStructure: render }));
 }
 
-// ---- meeting minutes: rich text per record, edited in a dialog with Edit / Preview tabs ----
+// ---- notes: rich text per record (field is still called `minutes` on disk), edited in a dialog with Edit / Preview tabs ----
 const hasMinutes = r => !!(r.minutes && r.minutes.replace(/<[^>]+>|&nbsp;|\s/g, ''));
 const fmtWhen = iso => iso ? new Date(iso).toLocaleString() : 'just now';
 const ALLOWED_TAGS = new Set(['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'A', 'CODE', 'PRE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'HR', 'DIV', 'SPAN', 'SUB', 'SUP']);
@@ -1215,7 +1215,7 @@ function openMinutes(row, level, onClose) {
   d.className = 'minutes';
   const original = row.minutes || '';
   const editor = el('div', { className: 'rt', contentEditable: 'true', spellcheck: true });
-  editor.setAttribute('data-placeholder', 'Type the minutes here. Headings, lists, links and tables are kept.');
+  editor.setAttribute('data-placeholder', 'Type your notes here. Headings, lists, links and tables are kept.');
   editor.innerHTML = sanitizeHtml(original);
   const preview = el('div', { className: 'rt-preview' });
   const body = el('div', { className: 'rt-body' }, editor);
@@ -1250,17 +1250,17 @@ function openMinutes(row, level, onClose) {
     } else editor.focus();
   };
   tabEdit.onclick = () => show('edit'); tabPrev.onclick = () => show('preview');
-  const meta = el('span', { className: 'meta', textContent: hasMinutes(row) ? 'Last updated ' + fmtWhen(row.minutesUpdated) : 'No minutes yet' });
+  const meta = el('span', { className: 'meta', textContent: hasMinutes(row) ? 'Last updated ' + fmtWhen(row.minutesUpdated) : 'No notes yet' });
   const close = () => { d.close(); };
-  const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: async () => { if (editor.innerHTML !== sanitizeHtml(original) && !await ask('Discard your changes to these minutes?', 'Discard')) return; close(); } });
-  const clear = el('button', { type: 'button', className: 'ghost', textContent: 'Delete minutes', onclick: async () => { if (!await ask('Delete the minutes for this record?', 'Delete')) return; row.minutes = ''; delete row.minutesUpdated; save(); close(); } });
-  const ok = el('button', { type: 'button', className: 'primary', textContent: 'Save minutes', onclick: () => {
+  const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: async () => { if (editor.innerHTML !== sanitizeHtml(original) && !await ask('Discard your changes to these notes?', 'Discard')) return; close(); } });
+  const clear = el('button', { type: 'button', className: 'ghost', textContent: 'Delete notes', onclick: async () => { if (!await ask('Delete the notes for this record?', 'Delete')) return; row.minutes = ''; delete row.minutesUpdated; save(); close(); } });
+  const ok = el('button', { type: 'button', className: 'primary', textContent: 'Save notes', onclick: () => {
     row.minutes = sanitizeHtml(editor.innerHTML);
     if (hasMinutes(row)) row.minutesUpdated = new Date().toISOString(); else { row.minutes = ''; delete row.minutesUpdated; }
     save(); close();
   } });
   d.replaceChildren(
-    el('div', { className: 'mn-head' }, el('h2', {}, 'Minutes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) })), el('span', { className: 'id', textContent: row.id })),
+    el('div', { className: 'mn-head' }, el('h2', {}, 'Notes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) })), el('span', { className: 'id', textContent: row.id })),
     el('div', { className: 'tabs' }, tabEdit, tabPrev),
     tb, body,
     el('div', { className: 'mn-foot' }, meta, ...(hasMinutes(row) ? [clear] : []), cancel, ok));
