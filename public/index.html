@@ -51,7 +51,7 @@
   .selbar button.danger:hover { background:var(--red); color:#fff; }
   /* spreadsheet-style fill handle on the active cell: drag it down to copy the value */
   td.active { position:relative; box-shadow:inset 0 0 0 2px var(--accent); }
-  td.active input:focus { box-shadow:none; }   /* the cell ring replaces the input's own focus ring */
+  td.active input:focus, td.active select:focus, td.active.editing .who, td.active.editing .pills { box-shadow:none; }   /* the cell ring replaces the inner control's own ring */
   td.active::after { content:""; position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; background:var(--accent); border:1.5px solid var(--panel-solid); border-radius:2px; cursor:crosshair; z-index:3; }
   td.fillrange { box-shadow:inset 0 0 0 1.5px var(--accent); background:var(--accent-soft) !important; }
   body.filling, body.filling * { cursor:crosshair !important; user-select:none; }
@@ -130,6 +130,28 @@
   td.ruled.chk .flag, td.ruled.choice .flag, td.ruled.multi .flag { position:static; transform:none; margin-left:6px; }
   .flag[data-tone=green] { background:var(--green-soft); color:var(--green); } .flag[data-tone=red] { background:var(--red-soft); color:var(--red); } .flag[data-tone=amber] { background:var(--amber-soft); color:var(--amber); } .flag[data-tone=blue] { background:var(--blue-soft); color:var(--blue); } .flag[data-tone=accent] { background:var(--accent-soft); color:var(--accent-ink); } .flag[data-tone=pink] { background:var(--pink-soft); color:var(--pink); } .flag[data-tone=teal] { background:var(--teal-soft); color:var(--teal); } .flag[data-tone=gray] { background:var(--gray-soft); color:var(--gray); }
   td.ruled[data-tone=red] > input { color:var(--red); font-weight:600; } td.ruled[data-tone=amber] > input { color:var(--amber); font-weight:600; } td.ruled[data-tone=green] > input { color:var(--green); font-weight:600; } td.ruled[data-tone=blue] > input { color:var(--blue); font-weight:600; }
+  /* Configure dialog: side navigation + one page at a time */
+  dialog.config { width:min(980px,96vw); padding:0; overflow:hidden; }
+  dialog.config form { display:flex; flex-direction:column; height:min(78vh,760px); }
+  .cfghead { padding:20px 26px 14px; border-bottom:1px solid var(--line); }
+  .cfgbody { flex:1; display:flex; min-height:0; }
+  .cfgnav { width:220px; flex:none; border-right:1px solid var(--line); padding:12px 10px; display:flex; flex-direction:column; gap:2px; overflow:auto; background:var(--bg2); }
+  .cfgnav .navitem { flex-direction:column; align-items:flex-start; gap:1px; padding:8px 12px; }
+  .cfgnav .navitem small { font-size:11px; color:var(--faint); font-weight:500; }
+  .cfgnav .navitem.active small { color:var(--accent-ink); opacity:.8; }
+  .cfgnav .addlvl { margin-top:auto; color:var(--accent-ink); font-size:12.5px; border:1px dashed var(--line-strong); justify-content:center; align-items:center; }
+  .cfgpane { flex:1; min-width:0; overflow:auto; padding:6px 26px 22px; }
+  .cfgpane h3:first-child { margin-top:14px; }
+  .cfgpane .crow.opts { margin-bottom:10px; }
+  .cfgfoot { margin:0; padding:12px 26px; border-top:1px solid var(--line); background:var(--head); }
+  details.optwrap, details.ruleswrap { margin:-2px 0 12px 22px; }
+  details.ruleswrap { margin:18px 0 0; }
+  details.optwrap > summary, details.ruleswrap > summary { cursor:pointer; font-size:12.5px; color:var(--muted); font-weight:600; padding:4px 0; list-style:none; display:flex; align-items:center; gap:6px; }
+  details.optwrap > summary::before, details.ruleswrap > summary::before { content:"▸"; font-size:11px; color:var(--faint); transition:transform .15s; }
+  details[open].optwrap > summary::before, details[open].ruleswrap > summary::before { transform:rotate(90deg); }
+  details.ruleswrap > summary { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--accent-ink); font-weight:700; }
+  details.optwrap > .optlist { margin:6px 0 0; padding-left:0; }
+  details.ruleswrap > div { margin-top:8px; }
   /* rule editor (Configure dialog) */
   .rule { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; background:var(--bg2); }
   .rule .rhead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
@@ -1349,8 +1371,9 @@ function openConfig() {
   const draft = JSON.parse(JSON.stringify(state.config));
   const form = el('form', { method: 'dialog' });
   const titleIn = el('input', { value: draft.title || '' });
-  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the tracker and shape its columns. Every record has an ID; each nesting level joins to its parent by that ID.' }));
-  form.append(el('h3', { textContent: 'Title' }), el('div', { className: 'crow' }, titleIn));
+  const header = el('div', { className: 'cfghead' }, el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Pick a section on the left. Nothing is saved until you press Save.' }));
+  const generalPage = () => [el('h3', { textContent: 'Tracker title' }), el('div', { className: 'crow' }, titleIn),
+    el('p', { className: 'sub', textContent: 'Shown at the top of the grid and in the browser tab.' })];
 
   // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
   // Names are free text in the grid; this list only controls how each one looks (and lets you rename one everywhere).
@@ -1382,7 +1405,7 @@ function openConfig() {
     pplBox.append(el('div', { className: 'pplrow' }, add));
   };
   drawPeople();
-  form.append(el('h3', { textContent: 'People' }), el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Names typed into owner-style columns are listed here automatically. Set the avatar colour and initials for each, or rename someone everywhere.' }), pplBox);
+  const peoplePage = () => [el('h3', { textContent: 'People' }), el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Everyone who can be picked in a Person column. Set the avatar colour and initials for each, or rename someone everywhere.' }), pplBox];
 
   const section = (heading, list, titleInput) => {
     const box = el('div');
@@ -1437,7 +1460,12 @@ function openConfig() {
             list.append(el('div', { className: 'optrow' }, add, el('span', { style: 'flex:1' }), el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)' }, multi, 'Allow multiple')));
           };
           drawOpts();
-          box.append(list);
+          const sum = el('summary');
+          const wrap = el('details', { className: 'optwrap', open: c.options.length <= 4 }, sum, list);
+          const paintSum = () => (sum.textContent = (c.options.length || 'No') + ' choice' + (c.options.length === 1 ? '' : 's') + (c.multi ? ' · multiple allowed' : ''));
+          paintSum();
+          wrap.addEventListener('input', paintSum); wrap.addEventListener('click', () => setTimeout(paintSum));
+          box.append(wrap);
         }
       });
       box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); } }));
@@ -1511,33 +1539,49 @@ function openConfig() {
     return box;
   }
 
-  const levelsBox = el('div');
   const titleInputs = [];
+  // The dialog is split into pages: General, People, then one per level. Level pages are all built up front so
+  // their title inputs exist when saving, but only the chosen one is shown.
+  const nav = el('div', { className: 'cfgnav' });
+  const pane = el('div', { className: 'cfgpane' });
+  const levelPages = [];
+  let current = 'general';
+  const navBtn = (id, label, sub) => el('button', { type: 'button', className: 'navitem' + (id === current ? ' active' : ''), onclick: () => { current = id; show(); } },
+    el('span', { textContent: label }), ...(sub ? [el('small', { textContent: sub })] : []));
+  const show = () => {
+    nav.replaceChildren(navBtn('general', 'General'), navBtn('people', 'People', draft.people.filter(p => p.name.trim()).length + ' people'));
+    draft.levels.forEach((lvl, i) => nav.append(navBtn('level' + i, (titleInputs[i] && titleInputs[i].value.trim()) || lvl.title || (i ? 'Level ' + (i + 1) : 'Main records'), (i ? 'Sub records · ' : 'Main records · ') + lvl.columns.length + ' columns')));
+    nav.append(el('button', { type: 'button', className: 'navitem addlvl', textContent: '+ Add a sub record level', onclick: () => {
+      draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] }); drawLevels(); current = 'level' + (draft.levels.length - 1); show();
+    } }));
+    pane.replaceChildren(...(current === 'general' ? generalPage() : current === 'people' ? peoplePage() : levelPages[Number(current.slice(5))] || []));
+    pane.scrollTop = 0;
+  };
   const drawLevels = () => {
-    levelsBox.replaceChildren();
+    levelPages.length = 0;
     titleInputs.length = 0;
     draft.levels.forEach((lvl, i) => {
       const t = el('input', { value: lvl.title || '', placeholder: i ? 'Sub record name (e.g. Items)' : 'Main record name' });
+      t.oninput = () => { const b = nav.querySelectorAll('.navitem')[i + 2]; if (b) b.firstChild.textContent = t.value.trim() || (i ? 'Level ' + (i + 1) : 'Main records'); };
       titleInputs.push(t);
       const heading = i === 0 ? 'Main records' : 'Level ' + (i + 1) + ' sub records' + (i > 1 ? ' (nested inside level ' + i + ')' : '');
-      levelsBox.append(...section(heading, lvl.columns, t));
-      levelsBox.append(el('h3', { textContent: (lvl.title || heading) + ' · rules', style: 'margin-top:14px' }), rulesEditor(lvl));
+      const page = [...section(heading, lvl.columns, t)];
+      const rules = el('details', { className: 'ruleswrap', open: (lvl.rules || []).length > 0 }, el('summary', { textContent: 'Rules · ' + (lvl.rules || []).length }), rulesEditor(lvl));
+      page.push(rules);
       if (i > 0 && i === draft.levels.length - 1) {
-        levelsBox.append(el('button', { type: 'button', className: 'ghost', textContent: '− Remove this level', onclick: async () => {
+        page.push(el('button', { type: 'button', className: 'ghost', style: 'margin-top:14px', textContent: '− Remove this level', onclick: async () => {
           if (!await ask('Remove level ' + (i + 1) + '? All records at this level will be deleted when you save.', 'Remove')) return;
-          draft.levels.pop(); drawLevels();
+          draft.levels.pop(); drawLevels(); current = 'level' + (draft.levels.length - 1); show();
         } }));
       }
+      levelPages.push(page);
     });
-    levelsBox.append(el('button', { type: 'button', className: 'primary', textContent: '+ Add a sub record level', onclick: () => {
-      draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] }); drawLevels();
-    } }));
   };
   drawLevels();
-  form.append(levelsBox);
+  show();
   const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: () => dlg.close() });
   const ok = el('button', { className: 'primary', textContent: 'Save', type: 'submit' });
-  form.append(el('div', { className: 'dlgbtns' }, cancel, ok));
+  form.append(header, el('div', { className: 'cfgbody' }, nav, pane), el('div', { className: 'dlgbtns cfgfoot' }, cancel, ok));
   form.onsubmit = () => {
     const finish = list => {
       const used = new Set();
@@ -1586,7 +1630,7 @@ function openConfig() {
     state.config = { title: titleIn.value.trim() || 'Track Things', people: newPeople, levels: newLevels };
     save(); render();
   };
-  dlg.className = '';
+  dlg.className = 'config';
   dlg.replaceChildren(form);
   dlg.showModal();
 }
