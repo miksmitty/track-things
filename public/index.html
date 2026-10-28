@@ -51,6 +51,7 @@
   .selbar button.danger:hover { background:var(--red); color:#fff; }
   /* spreadsheet-style fill handle on the active cell: drag it down to copy the value */
   td.active { position:relative; box-shadow:inset 0 0 0 2px var(--accent); }
+  td.active input:focus { box-shadow:none; }   /* the cell ring replaces the input's own focus ring */
   td.active::after { content:""; position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; background:var(--accent); border:1.5px solid var(--panel-solid); border-radius:2px; cursor:crosshair; z-index:3; }
   td.fillrange { box-shadow:inset 0 0 0 1.5px var(--accent); background:var(--accent-soft) !important; }
   body.filling, body.filling * { cursor:crosshair !important; user-select:none; }
