@@ -221,6 +221,13 @@
   /* expand toggle */
   .tip { position:fixed; z-index:50; background:var(--text); color:var(--bg); padding:7px 10px; border-radius:9px; font-size:12px; line-height:1.4; max-width:300px; white-space:pre-line; box-shadow:0 10px 30px -10px rgba(0,0,0,.5); pointer-events:none; opacity:0; transform:translateY(-3px); transition:opacity .12s, transform .12s; }
   .tip.on { opacity:1; transform:none; }
+  /* hover preview of a record's meeting minutes */
+  .peek { position:fixed; z-index:50; width:min(420px, calc(100vw - 16px)); background:var(--panel-solid); color:var(--text); border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 24px 60px -12px rgba(0,0,0,.45); pointer-events:none; opacity:0; transform:translateY(-3px); transition:opacity .12s, transform .12s; overflow:hidden; }
+  .peek.on { opacity:1; transform:none; }
+  .peek .ph { display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--line); font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); background:var(--head); }
+  .peek .ph small { font-weight:500; color:var(--muted); letter-spacing:0; text-transform:none; margin-left:auto; }
+  .peek .rt-preview { padding:10px 14px 14px; max-height:260px; overflow:hidden; font-size:13px; min-height:0; position:relative; }
+  .peek .rt-preview.more::after { content:""; position:absolute; left:0; right:0; bottom:0; height:48px; background:linear-gradient(transparent, var(--panel-solid)); }
   .toggle { cursor:pointer; color:var(--muted); user-select:none; display:inline-flex; align-items:center; gap:4px; padding:2px 4px; border-radius:8px; font-size:11px; transition:.15s; }
   .toggle svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s cubic-bezier(.2,.8,.2,1); }
   .toggle.open svg { transform:rotate(90deg); }
@@ -392,7 +399,28 @@ const tipEl = el('div', { className: 'tip' });
 document.body.append(tipEl);
 let tipFor = null;
 const hideTip = () => { tipFor = null; tipEl.classList.remove('on'); };
+const peekEl = el('div', { className: 'peek' });
+document.body.append(peekEl);
+let peekFor = null;
+const hidePeek = () => { peekFor = null; peekEl.classList.remove('on'); };
+const placeNear = (box, t) => {
+  const r = t.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2, y = r.bottom + 8;
+  x = Math.max(8, Math.min(x, innerWidth - w - 8));
+  if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 8);
+  box.style.left = x + 'px'; box.style.top = y + 'px';
+};
 document.addEventListener('mouseover', e => {
+  const pk = e.target.closest ? e.target.closest('[data-peek]') : null;   // minutes icon: show the formatted minutes
+  if (pk && pk !== peekFor && pk._peek) {
+    peekFor = pk;
+    const { html, title, when } = pk._peek();
+    const body = el('div', { className: 'rt-preview', innerHTML: html });
+    peekEl.replaceChildren(el('div', { className: 'ph' }, el('span', { textContent: title }), el('small', { textContent: when })), body);
+    peekEl.classList.add('on');
+    body.classList.toggle('more', body.scrollHeight > body.clientHeight + 1);
+    placeNear(peekEl, pk);
+  }
   const t = e.target.closest ? e.target.closest('[data-tip]') : null;
   if (!t || t === tipFor) return;
   tipFor = t;
@@ -404,9 +432,12 @@ document.addEventListener('mouseover', e => {
   if (y + h > innerHeight - 8) y = r.top - h - 8;
   tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
 });
-document.addEventListener('mouseout', e => { if (tipFor && !tipFor.contains(e.relatedTarget)) hideTip(); });
-document.addEventListener('mousedown', hideTip);
-addEventListener('scroll', hideTip, true);
+document.addEventListener('mouseout', e => {
+  if (tipFor && !tipFor.contains(e.relatedTarget)) hideTip();
+  if (peekFor && !peekFor.contains(e.relatedTarget)) hidePeek();
+});
+document.addEventListener('mousedown', () => { hideTip(); hidePeek(); });
+addEventListener('scroll', () => { hideTip(); hidePeek(); }, true);
 
 // ---- save with indicator ----
 const dot = document.getElementById('dot'), dotText = document.getElementById('dotText');
@@ -857,9 +888,10 @@ function makeGrid(level, rows, ui, opts) {
         });
         tr.append(td);
       });
-      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? 'Meeting minutes (updated ' + fmtWhen(row.minutesUpdated) + ')' : 'Add meeting minutes',
+      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? '' : 'Add meeting minutes',
         onclick: () => openMinutes(row, level, () => { nb.className = hasMinutes(row) ? 'has' : ''; }) },
         svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5'));
+      if (hasMinutes(row)) { nb.dataset.peek = '1'; nb._peek = () => ({ html: sanitizeHtml(row.minutes), title: 'Minutes · ' + recordName(row, level), when: 'updated ' + fmtWhen(row.minutesUpdated) }); }
       tr.append(el('td', { className: 'note' }, nb));
       tr.append(el('td', { className: 'act' }, el('button', {
         className: 'link', textContent: '✕', title: 'Delete row',

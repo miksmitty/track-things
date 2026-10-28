@@ -69,7 +69,8 @@
         {
           "key": "kjkj",
           "label": "kjkj",
-          "type": "number"
+          "type": "number",
+          "agg": "sum"
         },
         {
           "key": "tags",
