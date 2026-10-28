@@ -1,0 +1,166 @@
+{
+  "title": "Track Things",
+  "people": [
+    {
+      "name": "Mike",
+      "color": "teal"
+    },
+    {
+      "name": "Alice"
+    },
+    {
+      "name": "Bob"
+    },
+    {
+      "name": "Carol"
+    },
+    {
+      "name": "Dan"
+    },
+    {
+      "name": "Eve"
+    }
+  ],
+  "levels": [
+    {
+      "title": "Use Case",
+      "columns": [
+        {
+          "key": "name",
+          "label": "Title",
+          "type": "text",
+          "look": "plain",
+          "agg": "count"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "choice",
+          "options": [
+            "Red",
+            "Amber",
+            "Green",
+            "Complete"
+          ],
+          "colors": {
+            "Amber": "amber",
+            "Green": "green",
+            "Complete": "blue"
+          },
+          "agg": "count"
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "text",
+          "look": "person"
+        },
+        {
+          "key": "due",
+          "label": "Due",
+          "type": "date"
+        },
+        {
+          "key": "done",
+          "label": "Done",
+          "type": "checkbox",
+          "agg": "count"
+        },
+        {
+          "key": "kjkj",
+          "label": "kjkj",
+          "type": "number"
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "choice",
+          "options": [
+            "Urgent",
+            "Backend",
+            "Frontend",
+            "Docs"
+          ],
+          "colors": {
+            "Backend": "teal",
+            "Docs": "blue"
+          },
+          "multi": true
+        }
+      ],
+      "rules": [
+        {
+          "name": "Done",
+          "when": [
+            {
+              "col": "status",
+              "op": "is",
+              "value": "Complete"
+            }
+          ],
+          "effect": {
+            "apply": "row",
+            "tone": "",
+            "label": "",
+            "done": true
+          }
+        },
+        {
+          "name": "Overdue",
+          "when": [
+            {
+              "col": "due",
+              "op": "past"
+            },
+            {
+              "col": "status",
+              "op": "isNot",
+              "value": "Complete"
+            }
+          ],
+          "effect": {
+            "apply": "due",
+            "tone": "red",
+            "label": "OVERDUE",
+            "done": true
+          }
+        }
+      ]
+    },
+    {
+      "title": "Meeting",
+      "columns": [
+        {
+          "key": "item",
+          "label": "Title",
+          "type": "text",
+          "look": "plain"
+        },
+        {
+          "key": "qty",
+          "label": "Attendees",
+          "type": "text",
+          "look": "plain"
+        },
+        {
+          "key": "meeting_date",
+          "label": "Meeting Date",
+          "type": "date"
+        }
+      ],
+      "rules": []
+    },
+    {
+      "title": "Steps",
+      "columns": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "look": "plain"
+        }
+      ],
+      "rules": []
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+id,name,status,owner,due,done,kjkj,tags
+t1,Update website,In progress,Mike,2026-11-10,false,4,Urgent|Docs
+t2,Fix login bug,Red,Eve,2026-11-29,true,,
+t3,Order supplies,Amber,Alice,2026-12-03,true,,
+t4,Quarterly report,Complete,Dan,2026-10-23,true,,
+t5,Team offsite,In progress,Bob,2026-10-31,false,,
+t6,Renew licences,In progress,Alice,2026-10-26,false,,
+t7,Server migration,Blocked,Alice,2026-11-12,true,,
+t8,Client onboarding,In progress,Carol,2026-11-06,true,,
+t9,Design review,In progress,Carol,2026-11-20,true,,
+t10,Budget sign-off,In progress,Eve,2026-11-30,true,,
+t11,Write docs,In progress,Eve,2026-12-07,false,,
+t12,Security audit,Not started,Eve,2026-11-27,false,,
+t13,Hire contractor,Complete,Bob,2026-11-11,true,,
+t14,Refactor API,Complete,Dan,2026-11-14,true,,
+t15,Customer survey,Review,Bob,2026-10-21,true,,
+t16,Print brochures,Complete,Eve,2026-11-20,false,,
+t17,Backup test,Blocked,Dan,2026-11-22,false,,
+t18,Launch campaign,Review,Eve,2026-11-28,false,,
+t19,Vendor contract,Not started,Bob,2026-11-25,false,,
+t20,Training session,Blocked,Carol,2026-10-10,false,,
+lfauijv9,This is the thing I added,Red,Mike,2026-10-31,false,,Urgent|Docs
