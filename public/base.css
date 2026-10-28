@@ -124,6 +124,9 @@
   /* ---------- dialog ---------- */
   dialog { background:var(--panel-solid); color:var(--text); border:1px solid var(--line-strong); border-radius:20px; width:min(680px,94vw); box-shadow:0 30px 90px -20px rgba(0,0,0,.5); padding:24px 28px; animation:pop .22s cubic-bezier(.2,.8,.2,1) both; }
   dialog.ask { width:min(420px,92vw); padding:20px 22px; }
+  dialog { position:fixed; }
+  .dlgx { position:absolute; top:12px; right:12px; width:30px; height:30px; padding:0; border:none; border-radius:9px; background:none; color:var(--faint); font-size:18px; line-height:1; display:grid; place-items:center; cursor:pointer; z-index:5; }
+  .dlgx:hover { background:var(--hover); color:var(--text); }
   dialog.ask p { margin:0; font-size:14px; line-height:1.5; }
   dialog.ask .dlgbtns { margin-top:18px; }
   dialog::backdrop { background:rgba(8,10,18,.55); backdrop-filter:blur(6px); }

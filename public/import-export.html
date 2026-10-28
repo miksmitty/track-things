@@ -146,6 +146,7 @@ const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.crea
 function ask(message, okLabel = 'OK') {
   return new Promise(resolve => {
     const d = el('dialog', { className: 'ask' });
+    d.append(el('button', { type: 'button', className: 'dlgx', title: 'Close', textContent: '×', onclick: () => d.close() }));
     const no = el('button', { type: 'button', textContent: 'Cancel' });
     const yes = el('button', { type: 'button', className: 'primary', textContent: okLabel });
     d.append(el('p', { textContent: message }), el('div', { className: 'dlgbtns' }, no, yes));

@@ -399,9 +399,12 @@ const el = (tag, props = {}, ...kids) => {
 };
 // ---- in-page confirmation (native confirm() is blocked in some embedded browsers and silently returns false) ----
 // Opens a small modal on top of whatever is open and resolves true for OK, false for Cancel / Escape.
+// Every dialog gets a close button top right; it behaves like Cancel.
+const closeX = fn => el('button', { type: 'button', className: 'dlgx', title: 'Close', textContent: '×', onclick: fn });
 function ask(message, okLabel = 'OK') {
   return new Promise(resolve => {
     const d = el('dialog', { className: 'ask' });
+    d.append(closeX(() => d.close()));
     const no = el('button', { type: 'button', textContent: 'Cancel' });
     const yes = el('button', { type: 'button', className: 'primary', textContent: okLabel });
     d.append(el('p', { textContent: message }), el('div', { className: 'dlgbtns' }, no, yes));
@@ -1353,6 +1356,7 @@ function openNotes(row, c, level, onClose) {
     save(); close();
   } });
   d.replaceChildren(
+    closeX(() => cancel.click()),
     el('div', { className: 'mn-head' }, el('h2', {}, c.label + ' · ' + recordName(row, level), el('small', { textContent: levelTitle(level) }))),
     el('div', { className: 'tabs' }, tabEdit, tabPrev),
     tb, body,
@@ -1631,7 +1635,7 @@ function openConfig() {
     save(); render();
   };
   dlg.className = 'config';
-  dlg.replaceChildren(form);
+  dlg.replaceChildren(closeX(() => dlg.close()), form);
   dlg.showModal();
 }
 
