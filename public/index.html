@@ -204,10 +204,6 @@
   .toggle.open svg { transform:rotate(90deg); }
   .toggle:hover { background:var(--accent-soft); color:var(--accent-ink); }
   .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 7px; font-weight:700; font-size:10.5px; }
-  td.idcell { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:10.5px; color:var(--faint); letter-spacing:.02em; cursor:copy; white-space:nowrap; }
-  td.idcell:hover { color:var(--accent-ink); }
-  th.idh { padding:5px 10px; font-size:10px; white-space:nowrap; background:var(--head); backdrop-filter:blur(12px); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); font-weight:700; }
-  td.idcell { padding:0 10px; }
   td.subcell { background:var(--sub); padding:6px 10px 8px 40px; position:relative; }
   td.subcell td.subcell { padding-left:30px; }
   td.subcell::before { left:16px; }
@@ -642,10 +638,9 @@ function makeGrid(level, rows, ui, opts) {
   const thead = el('thead'), tbody = el('tbody');
   const tfoot = el('tfoot');
   table.append(colgroup, thead, tbody, tfoot);
-  const ID_W = 84;
   const TOG_W = 34, ACT_W = 30, NOTE_W = 30;
-  const fixedCols = (opts.subGrid ? TOG_W : 0) + ID_W + NOTE_W + ACT_W;
-  const span = cols.length + (opts.subGrid ? 4 : 3);
+  const fixedCols = (opts.subGrid ? TOG_W : 0) + NOTE_W + ACT_W;
+  const span = cols.length + (opts.subGrid ? 3 : 2);
   const colEls = {};
   const applyWidths = () => {
     table.style.width = fixedCols + cols.reduce((n, c) => n + colW(c), 0) + 'px';
@@ -653,7 +648,6 @@ function makeGrid(level, rows, ui, opts) {
   };
 
   if (opts.subGrid) colgroup.append(el('col', { style: 'width:' + TOG_W + 'px' }));
-  colgroup.append(el('col', { style: 'width:' + ID_W + 'px' }));
   cols.forEach(c => colgroup.append((colEls[c.key] = el('col'))));
   colgroup.append(el('col', { style: 'width:' + NOTE_W + 'px' }));
   colgroup.append(el('col', { style: 'width:' + ACT_W + 'px' }));
@@ -661,7 +655,6 @@ function makeGrid(level, rows, ui, opts) {
   const headRow = el('tr');
   const redraws = [];
   if (opts.subGrid) headRow.append(el('th', { className: 'tog' }));
-  headRow.append(el('th', { className: 'idh', title: 'Primary key. Sub records join to it by parent_id.' }, el('span', { className: 'lab', textContent: 'ID' })));
   cols.forEach(c => {
     const th = el('th', { className: 'h' });
     const lab = el('span', { className: 'lab' });
@@ -724,7 +717,6 @@ function makeGrid(level, rows, ui, opts) {
     if (cols.some(c => c.agg)) {
       const fr = el('tr');
       if (opts.subGrid) fr.append(el('td'));
-      fr.append(el('td'));
       cols.forEach(c => fr.append(c.agg
         ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
         : el('td')));
@@ -760,8 +752,6 @@ function makeGrid(level, rows, ui, opts) {
         if (n) tg.append(el('span', { className: 'n', textContent: n }));
         tr.append(el('td', { className: 'tog' }, tg));
       }
-      tr.append(el('td', { className: 'idcell', textContent: row.id, title: 'Record ID (click to copy)',
-        onclick: () => { try { navigator.clipboard.writeText(row.id); } catch {} } }));
       cols.forEach(c => {
         const td = cell(row, c, cols);
         if (c === firstText) td.classList.add('strike');
@@ -786,7 +776,6 @@ function makeGrid(level, rows, ui, opts) {
         const sui = uiSub[row.id] || (uiSub[row.id] = { sort: null, vals: {} });
         const sc = levels()[level + 1].columns;
         const title = el('div', { className: 'subtitle', textContent: levelTitle(level + 1) });
-        title.append(el('span', { className: 'lvl', textContent: 'parent ' + row.id }));
         if (hasDoneRule(level + 1) && row.children.length) {
           const d = row.children.filter(ch => isDoneAt(level + 1, ch)).length;
           const b = el('span', { className: 'bar2' }, el('i', { style: 'width:' + Math.round(100 * d / row.children.length) + '%' }));
@@ -1069,7 +1058,7 @@ function openMinutes(row, level, onClose) {
     save(); close();
   } });
   d.replaceChildren(
-    el('div', { className: 'mn-head' }, el('h2', {}, 'Minutes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) })), el('span', { className: 'id', textContent: row.id })),
+    el('div', { className: 'mn-head' }, el('h2', {}, 'Minutes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) }))),
     el('div', { className: 'tabs' }, tabEdit, tabPrev),
     tb, body,
     el('div', { className: 'mn-foot' }, meta, ...(hasMinutes(row) ? [clear] : []), cancel, ok));
@@ -1087,7 +1076,7 @@ function openConfig() {
   const draft = JSON.parse(JSON.stringify(state.config));
   const form = el('form', { method: 'dialog' });
   const titleIn = el('input', { value: draft.title || '' });
-  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the project and shape its columns. Every record has an ID; each nesting level joins to its parent by that ID.' }));
+  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the project and shape its columns at each level.' }));
   form.append(el('h3', { textContent: 'Title' }), el('div', { className: 'crow' }, titleIn));
 
   // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
