@@ -87,6 +87,11 @@
             "Docs": "blue"
           },
           "multi": true
+        },
+        {
+          "key": "notes",
+          "label": "Notes",
+          "type": "notes"
         }
       ],
       "rules": [
@@ -147,6 +152,11 @@
           "key": "meeting_date",
           "label": "Meeting Date",
           "type": "date"
+        },
+        {
+          "key": "notes",
+          "label": "Notes",
+          "type": "notes"
         }
       ],
       "rules": []

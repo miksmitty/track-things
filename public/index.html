@@ -86,7 +86,7 @@
   td.pillcell[data-tone=teal] input { background:var(--teal-soft); color:var(--teal); }
 
   /* notes (rich text per record; stored in the `minutes` field) */
-  th.note, td.note { width:30px; text-align:center; }
+  td.note { text-align:center; }
   td.note button { border:none; background:none; padding:3px 5px; border-radius:7px; color:var(--faint); cursor:pointer; display:inline-grid; place-items:center; }
   td.note button svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   td.note button:hover { background:var(--accent-soft); color:var(--accent-ink); }
@@ -307,8 +307,9 @@
 </div>
 <dialog id="dlg"></dialog>
 <script>
-const TYPES = ['text', 'number', 'date', 'checkbox', 'choice'];
-const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice' };
+const TYPES = ['text', 'number', 'date', 'checkbox', 'choice', 'notes'];
+const TYPE_LABELS = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Yes / no', choice: 'Choice', notes: 'Notes (rich text)' };
+const plainText = html => String(html ?? '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();   // notes column: HTML → searchable text
 // Date columns store ISO yyyy-mm-dd; `format` only changes how a date is shown and typed.
 const DATE_FORMATS = { native: 'Browser default (date picker)', dmy: '31/12/2026', mdy: '12/31/2026', ymd: '2026-12-31', dmmmy: '31 Dec 2026', long: '31 December 2026' };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -414,9 +415,9 @@ document.addEventListener('mouseover', e => {
   const pk = e.target.closest ? e.target.closest('[data-peek]') : null;   // notes icon: show the formatted notes
   if (pk && pk !== peekFor && pk._peek) {
     peekFor = pk;
-    const { html, title, when } = pk._peek();
+    const { html, title } = pk._peek();
     const body = el('div', { className: 'rt-preview', innerHTML: html });
-    peekEl.replaceChildren(el('div', { className: 'ph' }, el('span', { textContent: title }), el('small', { textContent: when })), body);
+    peekEl.replaceChildren(el('div', { className: 'ph' }, el('span', { textContent: title })), body);
     peekEl.classList.add('on');
     body.classList.toggle('more', body.scrollHeight > body.clientHeight + 1);
     placeNear(peekEl, pk);
@@ -457,15 +458,14 @@ function compare(a, b, type) {
   return String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true });
 }
 
-const keyOf = (c, v) => c.type === 'checkbox' ? (v ? 'Yes' : 'No') : String(v ?? '');
+const keyOf = (c, v) => c.type === 'checkbox' ? (v ? 'Yes' : 'No') : c.type === 'notes' ? plainText(v).slice(0, 60) : String(v ?? '');
 // Filter keys for a cell: a multi-choice cell contributes one key per selected option.
 const keysOf = (c, v) => isMulti(c) ? (multiVals(v).length ? multiVals(v) : ['']) : [keyOf(c, v)];
 
 function matches(row, cols, ui) {
   if (ui.search) {
     const q = ui.search.toLowerCase();
-    const inMinutes = row.minutes && row.minutes.replace(/<[^>]+>/g, ' ').toLowerCase().includes(q);   // search covers meeting minutes too
-    if (!inMinutes && !cols.some(c => (isMulti(c) ? multiVals(row[c.key]).join(' ') : String(row[c.key] ?? '')).toLowerCase().includes(q))) return false;
+    if (!cols.some(c => (isMulti(c) ? multiVals(row[c.key]).join(' ') : c.type === 'notes' ? plainText(row[c.key]) : String(row[c.key] ?? '')).toLowerCase().includes(q))) return false;
   }
   return cols.every(c => {
     const set = ui.vals[c.key];
@@ -494,12 +494,13 @@ const OPS = {
   number:   [['eq', '='], ['ne', '≠'], ['lt', '<'], ['gt', '>'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
   date:     [['past', 'is in the past'], ['today', 'is today'], ['within', 'is within (days)'], ['beyond', 'is more than (days) away'], ['before', 'is before (date)'], ['after', 'is after (date)'], ['eq', 'is (date)'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
   checkbox: [['checked', 'is ticked'], ['unchecked', 'is not ticked']],
+  notes:    [['contains', 'contains'], ['empty', 'is empty'], ['notEmpty', 'is not empty']],
 };
 const OP_NEEDS_VALUE = new Set(['is', 'isNot', 'contains', 'eq', 'ne', 'lt', 'gt', 'within', 'beyond', 'before', 'after']);
 function condMatches(w, row, cols) {
   const c = cols.find(x => x.key === w.col);
   if (!c) return false;
-  const v = row[c.key];
+  const v = c.type === 'notes' ? plainText(row[c.key]) : row[c.key];
   const vals = isMulti(c) ? multiVals(v) : [v];
   const str = String(Array.isArray(v) ? v.join(', ') : v ?? '').trim();
   const empty = Array.isArray(v) ? !v.length : str === '';
@@ -628,6 +629,7 @@ const aggOptions = c => ({
   checkbox: ['count'],
   text: ['count', 'distinct'],
   choice: ['count', 'distinct'],
+  notes: ['count'],
 }[c.type]);
 const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
@@ -656,7 +658,7 @@ const widthsFor = i => {
 const saveWidths = () => {
   try { for (const l of Object.keys(widths)) localStorage.setItem('tt-w-' + l, JSON.stringify(widths[l])); } catch {}
 };
-const defaultWidth = c => ({ number: 80, date: 140, checkbox: 60, choice: 130 }[c.type] || 150);
+const defaultWidth = c => ({ number: 80, date: 140, checkbox: 60, choice: 130, notes: 70 }[c.type] || 150);
 
 // ---- Excel-style column menu: sort + value checklist ----
 let menuEl = null;
@@ -727,9 +729,9 @@ function makeGrid(level, rows, ui, opts) {
   const thead = el('thead'), tbody = el('tbody');
   const tfoot = el('tfoot');
   table.append(colgroup, thead, tbody, tfoot);
-  const TOG_W = 34, ACT_W = 30, NOTE_W = 30, SEL_W = 30;
-  const fixedCols = (opts.subGrid ? TOG_W : 0) + SEL_W + NOTE_W + ACT_W;
-  const span = cols.length + (opts.subGrid ? 4 : 3);
+  const TOG_W = 34, ACT_W = 30, SEL_W = 30;
+  const fixedCols = (opts.subGrid ? TOG_W : 0) + SEL_W + ACT_W;
+  const span = cols.length + (opts.subGrid ? 3 : 2);
   ui.sel = ui.sel || new Set();   // ids of rows ticked for a bulk action
   const colEls = {};
   const applyWidths = () => {
@@ -740,7 +742,6 @@ function makeGrid(level, rows, ui, opts) {
   if (opts.subGrid) colgroup.append(el('col', { style: 'width:' + TOG_W + 'px' }));
   colgroup.append(el('col', { style: 'width:' + SEL_W + 'px' }));
   cols.forEach(c => colgroup.append((colEls[c.key] = el('col'))));
-  colgroup.append(el('col', { style: 'width:' + NOTE_W + 'px' }));
   colgroup.append(el('col', { style: 'width:' + ACT_W + 'px' }));
 
   const headRow = el('tr');
@@ -781,7 +782,7 @@ function makeGrid(level, rows, ui, opts) {
     th.append(lab, dd, grip);
     headRow.append(th);
   });
-  headRow.append(el('th', { className: 'note', title: 'Notes' }), el('th', { className: 'act' }));
+  headRow.append(el('th', { className: 'act' }));
   thead.append(headRow);
   applyWidths();
 
@@ -828,7 +829,7 @@ function makeGrid(level, rows, ui, opts) {
       cols.forEach(c => fr.append(c.agg
         ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
         : el('td')));
-      fr.append(el('td'), el('td'));
+      fr.append(el('td'));
       tfoot.append(fr);
     }
     countEl.textContent = list.length === rows.length ? rows.length + ' rows' : list.length + ' of ' + rows.length + ' rows';
@@ -888,11 +889,6 @@ function makeGrid(level, rows, ui, opts) {
         });
         tr.append(td);
       });
-      const nb = el('button', { className: hasMinutes(row) ? 'has' : '', title: hasMinutes(row) ? '' : 'Add notes',
-        onclick: () => openMinutes(row, level, () => { nb.className = hasMinutes(row) ? 'has' : ''; }) },
-        svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5'));
-      if (hasMinutes(row)) { nb.dataset.peek = '1'; nb._peek = () => ({ html: sanitizeHtml(row.minutes), title: 'Notes · ' + recordName(row, level), when: 'updated ' + fmtWhen(row.minutesUpdated) }); }
-      tr.append(el('td', { className: 'note' }, nb));
       tr.append(el('td', { className: 'act' }, el('button', {
         className: 'link', textContent: '✕', title: 'Delete row',
         onclick: async () => { if (!await ask('Delete this row?', 'Delete')) return; rows.splice(rows.indexOf(row), 1); save(); opts.onStructure ? opts.onStructure() : body(); },
@@ -926,6 +922,15 @@ function makeGrid(level, rows, ui, opts) {
       return td;
     }
     if (c.type === 'choice') return choiceCell(row, c);
+    if (c.type === 'notes') {
+      td.className = 'note';
+      const has = hasNotes(row[c.key]);
+      const nb = el('button', { type: 'button', className: has ? 'has' : '', title: has ? '' : 'Add ' + c.label.toLowerCase(),
+        onclick: () => openNotes(row, c, level, body) }, svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h5M10 17h5'));
+      if (has) { nb.dataset.peek = '1'; nb._peek = () => ({ html: sanitizeHtml(row[c.key]), title: c.label + ' · ' + recordName(row, level) }); }
+      td.append(nb);
+      return td;
+    }
     const fmt = c.type === 'date' ? dateFormat(c) : null;
     if (fmt && fmt !== 'native') {
       inp = el('input', { type: 'text', value: fmtDate(row[c.key], fmt), placeholder: DATE_FORMATS[fmt], spellcheck: false });
@@ -1183,9 +1188,8 @@ function render() {
   main.append(makeGrid(0, state.rows, uiMain, { onStructure: render }));
 }
 
-// ---- notes: rich text per record (field is still called `minutes` on disk), edited in a dialog with Edit / Preview tabs ----
-const hasMinutes = r => !!(r.minutes && r.minutes.replace(/<[^>]+>|&nbsp;|\s/g, ''));
-const fmtWhen = iso => iso ? new Date(iso).toLocaleString() : 'just now';
+// ---- notes columns: rich text (HTML) in the cell, edited in a dialog with Edit / Preview tabs ----
+const hasNotes = html => !!(html && String(html).replace(/<[^>]+>|&nbsp;|\s/g, ''));
 const ALLOWED_TAGS = new Set(['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'A', 'CODE', 'PRE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'HR', 'DIV', 'SPAN', 'SUB', 'SUP']);
 // Keep only harmless markup: known tags, and href links that are not javascript:.
 function sanitizeHtml(html) {
@@ -1210,10 +1214,10 @@ function recordName(row, level) {
   const c = levels()[level].columns.find(c => c.type === 'text' && row[c.key]);
   return c ? String(row[c.key]) : 'Record';
 }
-function openMinutes(row, level, onClose) {
+function openNotes(row, c, level, onClose) {
   const d = document.getElementById('dlg');
   d.className = 'minutes';
-  const original = row.minutes || '';
+  const original = row[c.key] || '';
   const editor = el('div', { className: 'rt', contentEditable: 'true', spellcheck: true });
   editor.setAttribute('data-placeholder', 'Type your notes here. Headings, lists, links and tables are kept.');
   editor.innerHTML = sanitizeHtml(original);
@@ -1250,20 +1254,20 @@ function openMinutes(row, level, onClose) {
     } else editor.focus();
   };
   tabEdit.onclick = () => show('edit'); tabPrev.onclick = () => show('preview');
-  const meta = el('span', { className: 'meta', textContent: hasMinutes(row) ? 'Last updated ' + fmtWhen(row.minutesUpdated) : 'No notes yet' });
+  const meta = el('span', { className: 'meta', textContent: hasNotes(original) ? '' : 'Nothing written yet' });
   const close = () => { d.close(); };
   const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: async () => { if (editor.innerHTML !== sanitizeHtml(original) && !await ask('Discard your changes to these notes?', 'Discard')) return; close(); } });
-  const clear = el('button', { type: 'button', className: 'ghost', textContent: 'Delete notes', onclick: async () => { if (!await ask('Delete the notes for this record?', 'Delete')) return; row.minutes = ''; delete row.minutesUpdated; save(); close(); } });
+  const clear = el('button', { type: 'button', className: 'ghost', textContent: 'Delete notes', onclick: async () => { if (!await ask('Delete the notes for this record?', 'Delete')) return; row[c.key] = ''; save(); close(); } });
   const ok = el('button', { type: 'button', className: 'primary', textContent: 'Save notes', onclick: () => {
-    row.minutes = sanitizeHtml(editor.innerHTML);
-    if (hasMinutes(row)) row.minutesUpdated = new Date().toISOString(); else { row.minutes = ''; delete row.minutesUpdated; }
+    const html = sanitizeHtml(editor.innerHTML);
+    row[c.key] = hasNotes(html) ? html : '';
     save(); close();
   } });
   d.replaceChildren(
-    el('div', { className: 'mn-head' }, el('h2', {}, 'Notes · ' + recordName(row, level), el('small', { textContent: levelTitle(level) })), el('span', { className: 'id', textContent: row.id })),
+    el('div', { className: 'mn-head' }, el('h2', {}, c.label + ' · ' + recordName(row, level), el('small', { textContent: levelTitle(level) }))),
     el('div', { className: 'tabs' }, tabEdit, tabPrev),
     tb, body,
-    el('div', { className: 'mn-foot' }, meta, ...(hasMinutes(row) ? [clear] : []), cancel, ok));
+    el('div', { className: 'mn-foot' }, meta, ...(hasNotes(original) ? [clear] : []), cancel, ok));
   d.onclose = () => { d.className = ''; d.onclose = null; onClose && onClose(); };
   d.showModal();
   editor.focus();

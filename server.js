@@ -43,7 +43,7 @@ const levelFile = i => path.join(DATA_DIR, `level${i + 1}.csv`);
 // Files used before levels were introduced (one main grid + one sub grid).
 const LEGACY_MAIN = path.join(DATA_DIR, 'main.csv');
 const LEGACY_SUB = path.join(DATA_DIR, 'sub.csv');
-const MINUTES_DIR = path.join(DATA_DIR, 'minutes');  // one <record id>.html per record that has meeting minutes (rich text)
+const MINUTES_DIR = path.join(DATA_DIR, 'minutes');  // legacy: one <record id>.html per record, folded into a notes column on first start
 const SNAP_DIR = path.join(DATA_DIR, 'snapshots');   // automatic safety copies taken before an import or restore
 const MAX_SNAPSHOTS = 30;
 
@@ -147,14 +147,11 @@ function loadState() {
     seedIds(recs.map(r => r.id));
     return recs.map(r => ({ ...typed(r, lvl.columns), parent_id: r.parent_id || '' }));
   });
-  const minutes = loadMinutes();
   const attach = (level, parentId) => {
     if (level >= flat.length) return undefined;
     return flat[level]
       .filter(r => level === 0 || r.parent_id === parentId)
       .map(({ parent_id, ...rec }) => {
-        const m = minutes.get(rec.id);
-        if (m) { rec.minutes = m.html; rec.minutesUpdated = m.updated; }
         const kids = attach(level + 1, rec.id);
         return kids ? { ...rec, children: kids } : rec;
       });
@@ -162,40 +159,38 @@ function loadState() {
   return { config, rows: attach(0, null) };
 }
 
-// ---- meeting minutes: rich text (HTML) kept out of the CSVs, one file per record ----
-const minutesFile = id => path.join(MINUTES_DIR, id + '.html');
-const safeId = id => /^[\w-]+$/.test(id);
-function loadMinutes() {
-  const out = new Map();
-  if (!fs.existsSync(MINUTES_DIR)) return out;
-  for (const f of fs.readdirSync(MINUTES_DIR)) {
-    if (!f.endsWith('.html')) continue;
-    const id = f.slice(0, -5);
-    if (!safeId(id)) continue;
-    const st = fs.statSync(path.join(MINUTES_DIR, f));
-    out.set(id, { html: fs.readFileSync(path.join(MINUTES_DIR, f), 'utf8'), updated: st.mtime.toISOString() });
-  }
-  return out;
-}
+// ---- notes columns: rich text (HTML) stored in the CSV cell ----
 // Minimal server-side sanitising: no scripts, no inline event handlers, no javascript: links.
-const cleanHtml = html => String(html)
+const cleanHtml = html => String(html ?? '')
   .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
   .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
   .replace(/\s(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
-function saveMinutes(records) {
-  fs.mkdirSync(MINUTES_DIR, { recursive: true });
-  const existing = loadMinutes();
-  const keep = new Set();
-  for (const r of records) {
-    if (!safeId(r.id)) continue;
-    const html = r.minutes ? cleanHtml(r.minutes).trim() : '';
-    const empty = !html || /^(<p>(<br\s*\/?>|\s|&nbsp;)*<\/p>|\s)*$/i.test(html);
-    if (empty) continue;
-    keep.add(r.id);
-    const cur = existing.get(r.id);
-    if (!cur || cur.html !== html) writeAtomic(minutesFile(r.id), html);   // untouched minutes keep their file time
+const emptyHtml = html => !html || /^(<p>(<br\s*\/?>|\s|&nbsp;)*<\/p>|\s)*$/i.test(html);
+
+// Legacy: notes used to live in data/minutes/<id>.html for every record. On first start after the change they
+// move into a 'Notes' column on each level that had any, and the folder is set aside.
+function migrateMinutes(state) {
+  if (!fs.existsSync(MINUTES_DIR)) return false;
+  const files = new Map();
+  for (const f of fs.readdirSync(MINUTES_DIR)) {
+    if (!f.endsWith('.html') || !/^[\w-]+$/.test(f.slice(0, -5))) continue;
+    const html = fs.readFileSync(path.join(MINUTES_DIR, f), 'utf8');
+    if (!emptyHtml(html)) files.set(f.slice(0, -5), html);
   }
-  for (const id of existing.keys()) if (!keep.has(id)) fs.unlinkSync(minutesFile(id));
+  const walk = (rows, level) => (rows || []).forEach(r => {
+    if (files.has(String(r.id))) {
+      const lvl = state.config.levels[level];
+      let col = lvl.columns.find(c => c.type === 'notes');
+      if (!col) { let key = 'notes'; while (lvl.columns.some(c => c.key === key)) key += '_'; col = { key, label: 'Notes', type: 'notes' }; lvl.columns.push(col); }
+      r[col.key] = files.get(String(r.id));
+    }
+    walk(r.children, level + 1);
+  });
+  walk(state.rows, 0);
+  const aside = MINUTES_DIR + '.migrated';
+  if (fs.existsSync(aside)) fs.rmSync(aside, { recursive: true, force: true });
+  fs.renameSync(MINUTES_DIR, aside);
+  return true;
 }
 
 function writeAtomic(file, text) {
@@ -215,13 +210,13 @@ function saveState(state) {
       if (!isIntId(r.id) || seen.has(String(r.id))) r.id = newId();   // every record gets a unique integer primary key
       r.id = String(Number(r.id));
       seen.add(r.id);
+      for (const c of config.levels[level].columns) if (c.type === 'notes') { const h = cleanHtml(r[c.key]).trim(); r[c.key] = emptyHtml(h) ? '' : h; }
       flat[level].push({ ...r, parent_id: parentId });
       walk(r.children, level + 1, r.id);
     }
   };
   walk(state.rows, 0, '');
   writeAtomic(CONFIG_FILE, JSON.stringify(config, null, 2));
-  saveMinutes(flat.flat());
   config.levels.forEach((lvl, i) => {
     const header = i === 0 ? ['id'] : ['id', 'parent_id'];
     writeAtomic(levelFile(i), toCsv([...header, ...lvl.columns.map(c => c.key)], flat[i]));
@@ -318,4 +313,8 @@ http.createServer((req, res) => {
 }).listen(PORT, () => console.log(`track-things on http://localhost:${PORT}`));
 
 // Records saved before ids became integers are renumbered once, on startup.
-try { const st = loadState(); if (allIds(st.rows).some(id => !isIntId(id))) saveState(st); } catch (e) { console.error('id migration failed', e); }
+try {
+  const st = loadState();
+  const movedNotes = migrateMinutes(st);
+  if (movedNotes || allIds(st.rows).some(id => !isIntId(id))) saveState(st);
+} catch (e) { console.error('startup migration failed', e); }
