@@ -128,6 +128,71 @@
   .rule .sw button.none { background:transparent; border:1.5px dashed var(--line-strong); opacity:1; }
   .rule .eff label { display:flex; align-items:center; gap:5px; }
 
+  /* configure dialog: section rail on the left, one panel at a time on the right, footer that stays put */
+  dialog.cfg { width:min(1140px,96vw); height:min(860px,92vh); padding:0; overflow:hidden; }
+  dialog.cfg form.cfg { display:flex; flex-direction:column; height:100%; }
+  .cfg-head { flex:none; padding:20px 26px 14px; border-bottom:1px solid var(--line); }
+  .cfg-body { flex:1; min-height:0; display:flex; }
+  .cfg-nav { width:232px; flex:none; display:flex; flex-direction:column; gap:2px; padding:10px 10px 14px; border-right:1px solid var(--line); background:var(--bg2); overflow-y:auto; }
+  .cfg-nav .navlabel { padding:12px 12px 4px; }
+  .cfg-nav .cn { display:flex; flex-direction:column; align-items:flex-start; gap:1px; width:100%; padding:8px 12px; border:none; border-radius:10px; background:none; color:var(--muted); font:inherit; font-weight:500; text-align:left; transition:.15s; }
+  .cfg-nav .cn:hover { background:var(--hover); color:var(--text); }
+  .cfg-nav .cn.active { background:linear-gradient(90deg,var(--accent-soft),transparent); color:var(--accent-ink); font-weight:600; box-shadow:inset 3px 0 0 var(--accent); }
+  .cfg-nav .cn .nl { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cfg-nav .cn small { font-size:11px; font-weight:500; color:var(--faint); }
+  .cfg-nav .addlvl { margin-top:10px; text-align:left; font-size:12.5px; }
+  .cfg-pane { flex:1; min-width:0; overflow-y:auto; padding:4px 26px 28px; }
+  .cfg-panel[hidden] { display:none; }
+  .cfg-panel > h3:first-child { margin-top:18px; }
+  .cfg-foot { flex:none; display:flex; align-items:center; gap:10px; padding:14px 26px; border-top:1px solid var(--line); background:var(--panel-solid); }
+  .cfg-foot .spacer { flex:1; }
+  .cfg-foot .danger { margin-right:0; }
+  .cfg-foot button { white-space:nowrap; }
+  .lvl-head { display:flex; align-items:flex-end; gap:14px; padding:18px 0 10px; border-bottom:1px solid var(--line); }
+  .lvl-head .lvl-meta { flex:1; min-width:0; }
+  .lvl-head .eyebrow { margin-bottom:6px; }
+  .lvltitle { width:100%; font:inherit; font-size:20px; font-weight:800; letter-spacing:-.02em; padding:5px 10px; margin-left:-10px; border:1px solid transparent; border-radius:10px; background:transparent; color:inherit; outline:none; transition:.15s; }
+  .lvltitle:hover { border-color:var(--line-strong); background:var(--bg2); }
+  .lvltitle:focus { border-color:var(--accent); background:var(--bg2); box-shadow:0 0 0 4px var(--accent-soft); }
+  .lvl-head .danger { margin:0 0 4px auto; white-space:nowrap; }
+  .ppl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(500px,1fr)); gap:6px 26px; }
+  .ppl-grid .pplrow { margin:0; }
+  .ppl-grid .pplrow .nm { flex:0 1 240px; min-width:120px; }
+  .cols { display:flex; flex-direction:column; gap:6px; }
+  .colrow { display:flex; align-items:center; gap:8px; }
+  .colrow input, .colrow select { font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; transition:.15s; }
+  .colrow input:focus, .colrow select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .colrow > input { flex:0 1 250px; min-width:130px; }
+  .colrow > select { flex:none; width:112px; }
+  .colrow .colmid { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+  .colrow .colmid select { max-width:100%; }
+  .colrow .dim { color:var(--faint); font-size:12.5px; white-space:nowrap; }
+  .colrow .x { border:none; background:none; color:var(--faint); padding:4px 7px; border-radius:7px; font-size:13px; }
+  .colrow .x:hover:not(:disabled) { color:var(--accent-ink); background:var(--hover); }
+  .colrow .x.del:hover { color:var(--red); background:var(--red-soft); }
+  .colrow .x:disabled { opacity:.25; cursor:default; }
+  .pillsum { display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; max-width:100%; padding:4px 8px; border:1px dashed var(--line-strong); border-radius:10px; background:transparent; font:inherit; color:var(--muted); cursor:pointer; transition:.15s; }
+  .pillsum:hover, .pillsum.open { border-color:var(--accent); border-style:solid; color:var(--accent-ink); }
+  .pillsum .more { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .pillsum .chev { font-size:10px; color:var(--faint); margin-left:2px; }
+  .coldet { margin:-2px 0 6px 22px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); }
+  .coldet .optlist { padding:0; margin:0; }
+  .coldet .optrow input[type=text] { background:var(--panel-solid); }
+  .rules { display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:10px; margin-bottom:8px; }
+  .rules .rule { margin:0; }
+  @media (max-width:760px) {
+    dialog.cfg { width:100vw; height:100vh; max-height:100vh; border-radius:0; }
+    .cfg-body { flex-direction:column; }
+    .cfg-nav { width:auto; flex-direction:row; align-items:center; overflow-x:auto; padding:8px; border-right:none; border-bottom:1px solid var(--line); }
+    .cfg-nav .navlabel { display:none; }
+    .cfg-nav .cn { width:auto; white-space:nowrap; }
+    .cfg-nav .addlvl { margin:0 0 0 6px; white-space:nowrap; }
+    .cfg-pane { padding:4px 16px 20px; }
+    .colrow, .ppl-grid .pplrow { flex-wrap:wrap; }
+    .ppl-grid { grid-template-columns:1fr; }
+    .rules { grid-template-columns:1fr; }
+  }
+
   /* avatars for owner-style text columns */
   .av { width:20px; height:20px; border-radius:50%; flex:none; display:grid; place-items:center; color:#fff; font-size:9px; font-weight:700; letter-spacing:.02em; box-shadow:0 2px 6px -2px rgba(0,0,0,.4), inset 0 0 0 1.5px rgba(255,255,255,.35); }
   td.personcell .add { color:var(--faint); font-size:11px; padding:1px 6px; border-radius:999px; border:1px dashed var(--line-strong); }
@@ -1074,16 +1139,49 @@ document.getElementById('newBtn').onclick = () => window.addMainRow && window.ad
 
 function openConfig() {
   const draft = JSON.parse(JSON.stringify(state.config));
-  const form = el('form', { method: 'dialog' });
-  const titleIn = el('input', { value: draft.title || '' });
-  form.append(el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Rename the project and shape its columns at each level.' }));
-  form.append(el('h3', { textContent: 'Title' }), el('div', { className: 'crow' }, titleIn));
+  const form = el('form', { method: 'dialog', className: 'cfg' });
+  const titleIn = el('input', { value: draft.title || '', placeholder: 'Project name' });
 
+  // Layout: a header, a section rail on the left (Project, then one entry per level), one panel at a time on the
+  // right, and a footer that stays put. Every panel stays in the DOM so inputs keep their values across switches.
+  const nav = el('div', { className: 'cfg-nav' });   // a div: base.css styles every <nav> as the page sidebar
+  const pane = el('div', { className: 'cfg-pane' });
+  const panels = new Map();   // 'project' | level index -> panel element
+  const titleInputs = [];     // one per level, read on save
+  let active = 'project';
+  const show = key => {
+    active = key;
+    panels.forEach((p, k) => { p.hidden = k !== key; });
+    nav.querySelectorAll('.cn').forEach(b => b.classList.toggle('active', b.dataset.key === String(key)));
+    pane.scrollTop = 0;
+  };
+  const navItem = (key, label, sub) => {
+    const b = el('button', { type: 'button', className: 'cn', onclick: () => show(key) });
+    b.dataset.key = String(key);
+    b.append(el('span', { className: 'nl', textContent: label }), el('small', { textContent: sub }));
+    return b;
+  };
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const syncNav = () => {
+    nav.replaceChildren(el('div', { className: 'navlabel', textContent: 'Project' }));
+    nav.append(navItem('project', titleIn.value.trim() || 'Untitled project', plural(draft.people.filter(p => p.name.trim()).length, 'person').replace('persons', 'people')));
+    nav.append(el('div', { className: 'navlabel', textContent: 'Levels' }));
+    draft.levels.forEach((lvl, i) => {
+      const cols = lvl.columns.filter(c => c.label.trim()).length, rules = (lvl.rules || []).length;
+      const name = (titleInputs[i] && titleInputs[i].value.trim()) || lvl.title || (i ? 'Level ' + (i + 1) : 'Main records');
+      nav.append(navItem(i, name, plural(cols, 'column') + (rules ? ' · ' + plural(rules, 'rule') : '')));
+    });
+    nav.append(el('button', { type: 'button', className: 'ghost addlvl', textContent: '+ Add a sub-record level', onclick: addLevel }));
+    nav.querySelectorAll('.cn').forEach(b => b.classList.toggle('active', b.dataset.key === String(active)));
+  };
+  titleIn.oninput = syncNav;
+
+  // ---- Project panel: name and people ----
   // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
   // Names are free text in the grid; this list only controls how each one looks (and lets you rename one everywhere).
   draft.people = (draft.people || []).map(p => ({ ...p, _was: p.name }));
   namesInUse().forEach(n => { if (!draft.people.some(p => p.name.toLowerCase() === n.toLowerCase())) draft.people.push({ name: n, _auto: true }); });
-  const pplBox = el('div');
+  const pplBox = el('div', { className: 'ppl-grid' });
   const drawPeople = () => {
     pplBox.replaceChildren();
     draft.people.forEach((p, i) => {
@@ -1094,47 +1192,71 @@ function openConfig() {
         sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === (p.color || '')));
       };
       const nm = el('input', { type: 'text', className: 'nm', value: p.name || '', placeholder: 'Full name' });
-      nm.oninput = () => { p.name = nm.value; paintAv(); };
+      nm.oninput = () => { p.name = nm.value; paintAv(); syncNav(); };
       const ini = el('input', { type: 'text', className: 'ini', value: p.initials || '', placeholder: initialsOf(p.name), maxLength: 3, title: 'Initials shown on the avatar' });
       ini.oninput = () => { p.initials = ini.value.trim().toUpperCase(); paintAv(); };
       const sw = el('div', { className: 'sw' });
       TONES.forEach(t => sw.append(el('button', { type: 'button', title: t === 'gray' ? 'Grey' : t === 'accent' ? 'Purple' : t[0].toUpperCase() + t.slice(1), onclick: () => { p.color = t; paintAv(); } })));
       sw.querySelectorAll('button').forEach((b, k) => { b.dataset.t = TONES[k]; b.style.setProperty('--c', 'var(--' + TONES[k] + ')'); });
       const auto = el('button', { type: 'button', className: 'x', textContent: 'auto', title: 'Let the app pick a colour', onclick: () => { delete p.color; paintAv(); } });
-      const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this person', onclick: () => { draft.people.splice(i, 1); drawPeople(); } });
+      const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this person', onclick: () => { draft.people.splice(i, 1); drawPeople(); syncNav(); } });
       paintAv();
       pplBox.append(el('div', { className: 'pplrow' }, av, nm, ini, sw, auto, del));
     });
-    const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add person', onclick: () => { draft.people.push({ name: '' }); drawPeople(); pplBox.querySelector('.pplrow:last-of-type .nm')?.focus(); } });
-    pplBox.append(el('div', { className: 'pplrow' }, add));
   };
   drawPeople();
-  form.append(el('h3', { textContent: 'People' }), el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Names typed into owner-style columns are listed here automatically. Set the avatar colour and initials for each, or rename someone everywhere.' }), pplBox);
+  const pplAdd = el('button', { type: 'button', className: 'ghost', style: 'margin-top:8px', textContent: '+ Add person', onclick: () => { draft.people.push({ name: '' }); drawPeople(); [...pplBox.querySelectorAll('.nm')].pop()?.focus(); } });
+  const projectPanel = el('section', { className: 'cfg-panel' },
+    el('h3', { textContent: 'Project name' }), el('div', { className: 'crow' }, titleIn),
+    el('h3', { textContent: 'People' }),
+    el('p', { className: 'sub', style: 'margin-bottom:12px', textContent: 'Names typed into owner-style columns are listed here automatically. Set the avatar colour and initials for each, or rename someone everywhere.' }),
+    pplBox, pplAdd);
+  panels.set('project', projectPanel);
+  pane.append(projectPanel);
 
-  const section = (heading, list, titleInput) => {
-    const box = el('div');
+  // ---- Columns of one level: one compact row each; a choice column's list opens beneath it on demand ----
+  const columnsEditor = (list, onChange) => {
+    const box = el('div', { className: 'cols' });
     const draw = () => {
       box.replaceChildren();
       list.forEach((c, i) => {
+        const row = el('div', { className: 'colrow' });
         const name = el('input', { value: c.label, placeholder: 'Column name' });
-        name.oninput = () => (c.label = name.value);
-        const type = el('select');
+        name.oninput = () => { c.label = name.value; onChange(); };
+        const type = el('select', { title: 'Type' });
         TYPES.forEach(t => type.append(el('option', { value: t, textContent: TYPE_LABELS[t], selected: t === c.type })));
-        type.onchange = () => { c.type = type.value; draw(); };
-        const up = el('button', { type: 'button', textContent: '↑', disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } });
-        const del = el('button', { type: 'button', textContent: '✕', onclick: () => { list.splice(i, 1); draw(); } });
-        box.append(el('div', { className: 'crow' }, el('span', { className: 'grip', textContent: '⋮' }), name, type, up, del));
+        type.onchange = () => { c.type = type.value; if (c.type === 'choice' && !(c.options || []).length) c._open = true; draw(); };
+        const up = el('button', { type: 'button', className: 'x', textContent: '↑', title: 'Move up', disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } });
+        const down = el('button', { type: 'button', className: 'x', textContent: '↓', title: 'Move down', disabled: i === list.length - 1, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); } });
+        const del = el('button', { type: 'button', className: 'x del', textContent: '✕', title: 'Remove column', onclick: () => { list.splice(i, 1); draw(); onChange(); } });
         suggestBehaviour(c, list);
-        const setting = (...kids) => box.append(el('div', { className: 'crow opts' }, ...kids));
-        const small = t => el('span', { style: 'color:var(--muted);font-size:12.5px;white-space:nowrap', textContent: t });
+        const mid = el('div', { className: 'colmid' });
+        let paintSum = () => {};
         if (c.type === 'text') {
-          const look = el('select');
+          const look = el('select', { title: 'How values are shown' });
           [['plain', 'Plain text'], ['status', 'Status pill (coloured by value)'], ['person', 'Person (avatar with initials)']].forEach(([v, t]) => look.append(el('option', { value: v, textContent: t, selected: c.look === v })));
           look.onchange = () => (c.look = look.value);
-          setting(small('Show as'), look);
-        }
-        if (c.type === 'choice') {
+          mid.append(el('span', { className: 'dim', textContent: 'Show as' }), look);
+        } else if (c.type === 'choice') {
           c.options = c.options || []; c.colors = c.colors || {};
+          const sum = el('button', { type: 'button', className: 'pillsum' + (c._open ? ' open' : ''), title: c._open ? 'Hide choices' : 'Edit choices', onclick: () => { c._open = !c._open; draw(); } });
+          paintSum = () => {
+            sum.replaceChildren();
+            const opts = c.options.filter(Boolean), shown = opts.slice(0, 4);
+            shown.forEach(o => { const p = el('span', { className: 'prev', textContent: o }); p.dataset.tone = optionTone(c, o); sum.append(p); });
+            if (opts.length > shown.length) sum.append(el('span', { className: 'more', textContent: '+' + (opts.length - shown.length) }));
+            if (!shown.length) sum.append(el('span', { className: 'more', textContent: 'No choices yet' }));
+            if (c.multi) sum.append(el('span', { className: 'more', textContent: '· multi' }));
+            sum.append(el('span', { className: 'chev', textContent: c._open ? '▴' : '▾' }));
+          };
+          paintSum();
+          mid.append(sum);
+        } else {
+          mid.append(el('span', { className: 'dim', textContent: c.type === 'date' ? 'Date picker' : c.type === 'number' ? 'Numeric, sortable' : 'Tick box' }));
+        }
+        row.append(el('span', { className: 'grip', textContent: '⋮' }), name, type, mid, up, down, del);
+        box.append(row);
+        if (c.type === 'choice' && c._open) {
           const list = el('div', { className: 'optlist' });
           const drawOpts = () => {
             list.replaceChildren();
@@ -1142,44 +1264,45 @@ function openConfig() {
               const name = el('input', { type: 'text', value: o, placeholder: 'Choice' });
               const prev = el('span', { className: 'prev', textContent: o || 'Choice' });
               const sw = el('div', { className: 'sw' });
-              const paint = () => { prev.dataset.tone = optionTone(c, c.options[k]); prev.textContent = c.options[k] || 'Choice'; sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === (c.colors[c.options[k]] || ''))); };
+              const paint = () => { prev.dataset.tone = optionTone(c, c.options[k]); prev.textContent = c.options[k] || 'Choice'; sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === (c.colors[c.options[k]] || ''))); paintSum(); };
               TONES.forEach(t => sw.append(el('button', { type: 'button', title: t === 'gray' ? 'Grey' : t === 'accent' ? 'Purple' : t[0].toUpperCase() + t.slice(1),
                 onclick: () => { if (c.options[k]) c.colors[c.options[k]] = t; paint(); } })));
               sw.querySelectorAll('button').forEach((b, i) => { b.dataset.t = TONES[i]; b.style.setProperty('--c', 'var(--' + (TONES[i] === 'accent' ? 'accent' : TONES[i]) + ')'); });
               const auto = el('button', { type: 'button', className: 'x', textContent: 'auto', title: 'Let the app pick a colour', onclick: () => { delete c.colors[c.options[k]]; paint(); } });
               name.oninput = () => { const old = c.options[k]; c.options[k] = name.value.trim(); if (c.colors[old] && old !== c.options[k]) { c.colors[c.options[k]] = c.colors[old]; delete c.colors[old]; } paint(); };
-              const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this choice', onclick: () => { delete c.colors[c.options[k]]; c.options.splice(k, 1); drawOpts(); } });
+              const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this choice', onclick: () => { delete c.colors[c.options[k]]; c.options.splice(k, 1); drawOpts(); paintSum(); } });
               paint();
               list.append(el('div', { className: 'optrow' }, el('span', { className: 'drag', textContent: '·' }), name, prev, sw, auto, del));
             });
-            const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add choice', onclick: () => { c.options.push(''); drawOpts(); list.querySelector('.optrow:last-of-type input')?.focus(); } });
+            const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add choice', onclick: () => { c.options.push(''); drawOpts(); [...list.querySelectorAll('.optrow input')].pop()?.focus(); } });
             const multi = el('input', { type: 'checkbox', checked: !!c.multi });
-            multi.onchange = () => (c.multi = multi.checked);
+            multi.onchange = () => { c.multi = multi.checked; paintSum(); };
             list.append(el('div', { className: 'optrow' }, add, el('span', { style: 'flex:1' }), el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)' }, multi, 'Allow multiple')));
           };
           drawOpts();
-          box.append(list);
+          box.append(el('div', { className: 'coldet' }, list));
         }
       });
-      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); } }));
+      box.append(el('button', { type: 'button', className: 'ghost', style: 'align-self:flex-start', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); onChange(); [...box.querySelectorAll('.colrow > input')].pop()?.focus(); } }));
     };
     draw();
-    return [el('h3', { textContent: heading }), ...(titleInput ? [el('div', { className: 'crow' }, titleInput)] : []), box];
+    return box;
   };
 
-  // Rules editor for one level: each rule is "when all of these hold → do this".
-  function rulesEditor(lvl) {
+  // Rules editor for one level: each rule is "when all of these hold → do this". Cards sit in a grid.
+  function rulesEditor(lvl, onChange) {
     lvl.rules = lvl.rules || [];
     const box = el('div');
     const colsOf = () => lvl.columns.filter(c => c.label.trim()).map(c => ({ key: c.key || c.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'), label: c.label.trim(), type: c.type }));
     const draw = () => {
       box.replaceChildren();
+      const grid = el('div', { className: 'rules' });
       lvl.rules.forEach((rule, ri) => {
         rule.when = rule.when || []; rule.effect = rule.effect || { apply: 'row', tone: '' };
         const card = el('div', { className: 'rule' });
         const name = el('input', { value: rule.name || '', placeholder: 'Rule name (e.g. Overdue)' });
         name.oninput = () => (rule.name = name.value);
-        card.append(el('div', { className: 'rhead' }, name, el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Delete rule', onclick: () => { lvl.rules.splice(ri, 1); draw(); } })));
+        card.append(el('div', { className: 'rhead' }, name, el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Delete rule', onclick: () => { lvl.rules.splice(ri, 1); draw(); onChange(); } })));
         const cols = colsOf();
         rule.when.forEach((w, wi) => {
           const colSel = el('select');
@@ -1224,42 +1347,57 @@ function openConfig() {
         label.style.display = e.apply === 'row' ? 'none' : '';
         card.append(el('div', { className: 'eff' }, el('span', { className: 'kw', textContent: 'then' }), el('span', { textContent: 'colour' }), sw, apply, label,
           el('label', { title: 'Greys the row, strikes the first text column, and counts towards progress bars and done totals' }, done, 'counts as done')));
-        box.append(card);
+        grid.append(card);
       });
-      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add rule', onclick: () => { lvl.rules.push({ name: '', when: [{ col: colsOf()[0] ? colsOf()[0].key : '', op: '' }], effect: { apply: 'row', tone: '' } }); draw(); } }));
+      if (lvl.rules.length) box.append(grid);
+      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add rule', onclick: () => { lvl.rules.push({ name: '', when: [{ col: colsOf()[0] ? colsOf()[0].key : '', op: '' }], effect: { apply: 'row', tone: '' } }); draw(); onChange(); } }));
     };
     draw();
     return box;
   }
 
-  const levelsBox = el('div');
-  const titleInputs = [];
-  const drawLevels = () => {
-    levelsBox.replaceChildren();
+  // ---- One panel per level: its name, then columns, then rules ----
+  function buildLevelPanel(lvl, i) {
+    const t = el('input', { className: 'lvltitle', value: lvl.title || '', placeholder: i ? 'Sub record name (e.g. Items)' : 'Main record name (e.g. Tasks)' });
+    t.oninput = syncNav;
+    titleInputs[i] = t;
+    const parent = i ? ((titleInputs[i - 1] && titleInputs[i - 1].value.trim()) || draft.levels[i - 1].title || 'level ' + i) : '';
+    const head = el('div', { className: 'lvl-head' },
+      el('div', { className: 'lvl-meta' }, el('div', { className: 'eyebrow', textContent: i ? 'Level ' + (i + 1) + ' · nested inside each ' + parent : 'Level 1 · main records' }), t));
+    if (i > 0 && i === draft.levels.length - 1) {
+      head.append(el('button', { type: 'button', className: 'danger', textContent: 'Remove this level…', onclick: async () => {
+        if (!await ask('Remove level ' + (i + 1) + '? All records at this level will be deleted when you save.', 'Remove')) return;
+        draft.levels.pop(); rebuildLevels(); show(draft.levels.length - 1);
+      } }));
+    }
+    return el('section', { className: 'cfg-panel' }, head,
+      el('h3', { textContent: 'Columns' }), columnsEditor(lvl.columns, syncNav),
+      el('h3', { textContent: 'Rules' }),
+      el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Colour a row or cell, add a badge, or count a record as done when conditions hold.' }),
+      rulesEditor(lvl, syncNav));
+  }
+  function rebuildLevels() {
+    for (const [k, p] of [...panels]) if (k !== 'project') { p.remove(); panels.delete(k); }
     titleInputs.length = 0;
-    draft.levels.forEach((lvl, i) => {
-      const t = el('input', { value: lvl.title || '', placeholder: i ? 'Sub record name (e.g. Items)' : 'Main record name' });
-      titleInputs.push(t);
-      const heading = i === 0 ? 'Main records' : 'Level ' + (i + 1) + ' sub records' + (i > 1 ? ' (nested inside level ' + i + ')' : '');
-      levelsBox.append(...section(heading, lvl.columns, t));
-      levelsBox.append(el('h3', { textContent: (lvl.title || heading) + ' · rules', style: 'margin-top:14px' }), rulesEditor(lvl));
-      if (i > 0 && i === draft.levels.length - 1) {
-        levelsBox.append(el('button', { type: 'button', className: 'ghost', textContent: '− Remove this level', onclick: async () => {
-          if (!await ask('Remove level ' + (i + 1) + '? All records at this level will be deleted when you save.', 'Remove')) return;
-          draft.levels.pop(); drawLevels();
-        } }));
-      }
-    });
-    levelsBox.append(el('button', { type: 'button', className: 'primary', textContent: '+ Add a sub record level', onclick: () => {
-      draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] }); drawLevels();
-    } }));
-  };
-  drawLevels();
-  form.append(levelsBox);
+    draft.levels.forEach((lvl, i) => { const p = buildLevelPanel(lvl, i); panels.set(i, p); pane.append(p); });
+    syncNav();
+    show(panels.has(active) ? active : 'project');
+  }
+  function addLevel() {
+    draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] });
+    rebuildLevels();
+    show(draft.levels.length - 1);
+    titleInputs[draft.levels.length - 1].focus();
+  }
+  rebuildLevels();
+
+  const head = el('div', { className: 'cfg-head' },
+    el('h2', { textContent: 'Configure' }),
+    el('p', { className: 'sub', textContent: 'Project name and people, then the columns and rules at each level. Nothing changes until you save.' }));
   const cancel = el('button', { type: 'button', textContent: 'Cancel', onclick: () => dlg.close() });
   const ok = el('button', { className: 'primary', textContent: 'Save', type: 'submit' });
   const delProject = el('button', { type: 'button', className: 'danger', textContent: 'Delete project…', onclick: () => { dlg.close(); TT.deleteProject(); } });
-  form.append(el('div', { className: 'dlgbtns' }, delProject, cancel, ok));
+  form.append(head, el('div', { className: 'cfg-body' }, nav, pane), el('div', { className: 'cfg-foot' }, delProject, el('span', { className: 'spacer' }), cancel, ok));
   form.onsubmit = () => {
     const finish = list => {
       const used = new Set();
@@ -1308,7 +1446,7 @@ function openConfig() {
     TT.setName(state.config.title);
     save(); render();
   };
-  dlg.className = '';
+  dlg.className = 'cfg';
   dlg.replaceChildren(form);
   dlg.showModal();
 }
