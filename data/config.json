@@ -2,23 +2,29 @@
   "title": "Track Things",
   "people": [
     {
-      "name": "Mike",
+      "name": "Mike Smith",
       "color": "teal"
     },
     {
-      "name": "Alice"
+      "name": "Roger Ramjet"
     },
     {
-      "name": "Bob"
+      "name": "Julie Jaybird"
     },
     {
-      "name": "Carol"
+      "name": "Super Man"
     },
     {
       "name": "Dan"
     },
     {
       "name": "Eve"
+    },
+    {
+      "name": "Even"
+    },
+    {
+      "name": "Mike fddf"
     }
   ],
   "levels": [
@@ -34,18 +40,19 @@
         },
         {
           "key": "status",
-          "label": "Status",
+          "label": "Lifecycle",
           "type": "choice",
           "options": [
-            "Red",
-            "Amber",
-            "Green",
-            "Complete"
+            "Stage 1",
+            "Stage 2",
+            "Stage 3",
+            "Stage 4"
           ],
           "colors": {
-            "Amber": "amber",
-            "Green": "green",
-            "Complete": "blue"
+            "Stage 1": "gray",
+            "Stage 2": "green",
+            "Stage 3": "teal",
+            "Stage 4": "teal"
           },
           "agg": "count"
         },
@@ -151,23 +158,6 @@
           "key": "meeting_date",
           "label": "Meeting Date",
           "type": "date"
-        },
-        {
-          "key": "notes",
-          "label": "Notes",
-          "type": "notes"
-        }
-      ],
-      "rules": []
-    },
-    {
-      "title": "Steps",
-      "columns": [
-        {
-          "key": "name",
-          "label": "Name",
-          "type": "text",
-          "look": "plain"
         }
       ],
       "rules": []
