@@ -95,7 +95,10 @@ function typed(rec, cols) {
   return out;
 }
 
-const readCsv = f => { try { return parseCsv(fs.readFileSync(f, 'utf8')); } catch { return []; } };
+// CSVs re-saved by Excel on Windows are often Windows-1252 rather than UTF-8 and may start with a byte order mark.
+const utf8 = new TextDecoder('utf-8', { fatal: true });
+const decodeCsv = buf => { let t; try { t = utf8.decode(buf); } catch { t = buf.toString('latin1'); } return t.replace(/^\ufeff/, ''); };
+const readCsv = f => { try { return parseCsv(decodeCsv(fs.readFileSync(f))); } catch { return []; } };
 
 // Accept either the new {levels:[…]} shape or the old {columns, subColumns, subTitle} shape.
 function normaliseConfig(raw) {
@@ -256,7 +259,11 @@ const sendJson = (res, obj, code = 200) => { res.statusCode = code; res.setHeade
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/api/state') {
+  // Behind a proxy the app may be served under a path prefix (e.g. /proxy/3160/) that isn't stripped:
+  // API and data routes are matched from their own segment on, and static files fall back to their name alone.
+  const at = url.pathname.search(/\/(api|data)\//);
+  const route = at >= 0 ? url.pathname.slice(at) : url.pathname;
+  if (route === '/api/state') {
     if (req.method === 'GET') {
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify(loadState()));
@@ -282,15 +289,15 @@ http.createServer((req, res) => {
       return;
     }
   }
-  if (url.pathname === '/api/backup') {
+  if (route === '/api/backup') {
     const name = 'track-things-' + new Date().toISOString().slice(0, 10) + '.json';
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
     return res.end(backupJson());
   }
-  if (url.pathname === '/api/snapshots' && req.method === 'GET') return sendJson(res, listSnapshots());
-  if (url.pathname === '/api/snapshots' && req.method === 'POST') return sendJson(res, { name: takeSnapshot(url.searchParams.get('reason') || 'manual') });
-  const sm = url.pathname.match(/^\/api\/snapshots\/([^/]+)$/);
+  if (route === '/api/snapshots' && req.method === 'GET') return sendJson(res, listSnapshots());
+  if (route === '/api/snapshots' && req.method === 'POST') return sendJson(res, { name: takeSnapshot(url.searchParams.get('reason') || 'manual') });
+  const sm = route.match(/^\/api\/snapshots\/([^/]+)$/);
   if (sm) {
     const name = decodeURIComponent(sm[1]);
     const f = path.join(SNAP_DIR, name);
@@ -300,21 +307,33 @@ http.createServer((req, res) => {
     if (url.searchParams.has('download')) res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
     return res.end(fs.readFileSync(f));
   }
-  const m = url.pathname.match(/^\/data\/level(\d+)\.csv$/);
-  if (m || url.pathname === '/data/main.csv') {
+  const m = route.match(/^\/data\/level(\d+)\.csv$/);
+  if (m || route === '/data/main.csv') {
     const f = m ? levelFile(Number(m[1]) - 1) : levelFile(0);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     return res.end(fs.existsSync(f) ? fs.readFileSync(f) : '');
   }
-  const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-  const file = path.join(PUBLIC, rel);
+  let p; try { p = decodeURIComponent(url.pathname); } catch { p = '/'; }
+  // A prefix without a trailing slash (/proxy/3160) would make the page's relative links resolve one level up.
+  if (!p.endsWith('/') && !path.extname(p)) { res.statusCode = 302; res.setHeader('Location', p + '/' + url.search); return res.end(); }
+  const file = path.join(PUBLIC, p.endsWith('/') ? p + 'index.html' : p);
+  const byName = path.join(PUBLIC, path.basename(file));
   if (!file.startsWith(PUBLIC + path.sep)) { res.statusCode = 403; return res.end(); }
-  fs.readFile(file, (err, buf) => {
+  const send = (err, buf, f) => {
     if (err) { res.statusCode = 404; return res.end('not found'); }
-    res.setHeader('Content-Type', TYPES[path.extname(file)] || 'application/octet-stream');
+    res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-cache');
     res.end(buf);
-  });
-}).listen(PORT, () => console.log(`track-things on http://localhost:${PORT}`));
+  };
+  fs.readFile(file, (err, buf) => err ? fs.readFile(byName, (e2, b2) => send(e2, b2, byName)) : send(err, buf, file));
+})
+  .on('error', e => {
+    if (e.code === 'EADDRINUSE') console.error(`Port ${PORT} is already in use. Stop whatever is using it, or run with PORT=<other> node server.js`);
+    else if (e.code === 'EACCES') console.error(`Not allowed to listen on port ${PORT}. Try PORT=<other> node server.js`);
+    else console.error('Could not start:', e.message);
+    process.exit(1);
+  })
+  .listen(PORT, () => console.log(`track-things on http://localhost:${PORT}`));
 
 // Records saved before ids became integers are renumbered once, on startup.
 try {
