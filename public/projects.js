@@ -24,31 +24,63 @@
     return pg + '?project=' + enc(p) + (s ? '&set=' + enc(s) : '') + (o.hash || '');
   };
 
-  // ---- sidebar: Projects and Data sets, inserted above the page's own links ----
+  // ---- sidebar ----
+  // Top to bottom it reads as the hierarchy: the project (a switcher), its data sets, and under the open data set
+  // the things you can do with it (the page's own Configure and Import / Export links, in #navTools).
   const nav = document.querySelector('nav');
-  const projectList = h('div', { className: 'navlist' }), setList = h('div', { className: 'navlist' });
+  const tools = document.getElementById('navTools');
+  const setList = h('div', { className: 'navlist' });
   const svg = d => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.innerHTML = '<path d="' + d + '"/>'; return s; };
   const FOLDER = 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z';
   const TABLE = 'M4 5h16v14H4zM4 10h16M10 10v9';
   const PLUS = 'M12 5v14M5 12h14';
-  const addBtn = (label, fn) => h('button', { type: 'button', className: 'navitem add', onclick: fn }, svg(PLUS), label);
+  const CHEVRON = 'M8 10l4 4 4-4';
+  const switchName = h('span', { className: 'pname' });
+  const switcher = h('button', { type: 'button', className: 'projswitch', title: 'Switch project', onclick: () => (menu ? closeMenu() : openMenu()) }, svg(FOLDER), switchName, svg(CHEVRON));
+  switcher.lastChild.classList.add('chev');
   if (nav) {
-    const first = nav.querySelector('.navlabel');
     const parts = [
-      h('div', { className: 'navlabel', textContent: 'Projects' }), projectList, addBtn('New project', () => newProject()),
-      h('div', { className: 'navlabel', textContent: 'Data sets' }), setList, addBtn('New data set', () => newSet()),
+      h('div', { className: 'navlabel', textContent: 'Project' }), switcher,
+      h('div', { className: 'navlabel', textContent: 'Data sets' }), setList,
+      h('button', { type: 'button', className: 'navitem add', onclick: () => newSet() }, svg(PLUS), 'New data set'),
     ];
-    first ? first.before(...parts) : nav.append(...parts);
+    const before = tools || nav.querySelector('.spacer');
+    before ? before.before(...parts) : nav.append(...parts);
     nav.querySelectorAll('a[href]').forEach(a => (a.dataset.base = a.getAttribute('href')));   // the page's own links, as written
   }
-  const entry = (active, link, icon, name, count) => {
-    const a = h('a', { className: 'navitem entry' + (active ? ' active' : ''), href: link }, svg(icon), h('span', { className: 'pname', textContent: name }));
-    if (count != null) a.append(h('span', { className: 'pcount', textContent: count }));
-    return a;
-  };
+
+  // Project switcher menu: every project, then "New project".
+  let menu = null;
+  const closeMenu = () => { if (menu) menu.remove(); menu = null; switcher.classList.remove('on'); };
+  function openMenu() {
+    menu = h('div', { className: 'popmenu' });
+    projects.forEach(p => {
+      const a = h('a', { className: 'navitem' + (p.id === project ? ' active' : ''), href: href('./', { project: p.id }) }, svg(FOLDER),
+        h('span', { className: 'pname', textContent: p.name }), h('small', { textContent: p.sets + (p.sets === 1 ? ' data set' : ' data sets') }));
+      menu.append(a);
+    });
+    menu.append(h('hr'), h('button', { type: 'button', className: 'navitem add', onclick: () => { closeMenu(); newProject(); } }, svg(PLUS), 'New project'));
+    document.body.append(menu);
+    const r = switcher.getBoundingClientRect();
+    menu.style.left = r.left + 'px'; menu.style.top = r.bottom + 6 + 'px'; menu.style.minWidth = r.width + 'px';
+    switcher.classList.add('on');
+  }
+  document.addEventListener('mousedown', e => { if (menu && !menu.contains(e.target) && !switcher.contains(e.target)) closeMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
   function render() {
-    projectList.replaceChildren(...projects.map(p => entry(p.id === project, href(page(), { project: p.id }), FOLDER, p.name)));
-    setList.replaceChildren(...sets.map(s => entry(s.id === set, href(page(), { set: s.id }), TABLE, s.name, s.rows)));
+    const cur = projects.find(p => p.id === project);
+    switchName.textContent = cur ? cur.name : 'No project';
+    const onGrid = page() === './';
+    // The open data set is the grid itself, so there is no separate "Grid" link: its row is the way back to it.
+    setList.replaceChildren(...sets.map(s => {
+      const a = h('a', { className: 'navitem entry' + (s.id === set ? (onGrid ? ' active' : ' open') : ''), href: href('./', { set: s.id }) },
+        svg(TABLE), h('span', { className: 'pname', textContent: s.name }), h('span', { className: 'pcount', textContent: s.rows }));
+      a.dataset.set = s.id;
+      return a;
+    }));
+    const open = setList.querySelector('[data-set="' + set + '"]');
+    if (tools && open) open.after(tools);
     // The page's own links keep the open project and data set.
     if (nav) nav.querySelectorAll('a[data-base]').forEach(a => {
       const [path, hash] = a.dataset.base.split('#');

@@ -183,12 +183,26 @@
     header h1 { font-size:24px; }
   }
 
-  /* ---------- projects and data sets (sidebar, filled in by projects.js) ---------- */
+  /* ---------- sidebar hierarchy (filled in by projects.js): project switcher > data sets > the open data set's tools ---------- */
   nav { overflow-y:auto; }
-  .navlist { display:flex; flex-direction:column; gap:2px; flex:none; max-height:24vh; overflow-y:auto; }
+  .projswitch { display:flex; align-items:center; gap:10px; width:100%; flex:none; padding:9px 10px 9px 12px; border:1px solid var(--line-strong); border-radius:11px; background:var(--bg2); color:var(--text); font:inherit; font-weight:600; text-align:left; }
+  .projswitch:hover, .projswitch.on { border-color:var(--accent); color:var(--text); }
+  .projswitch svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; color:var(--accent-ink); }
+  .projswitch svg.chev { width:16px; height:16px; color:var(--faint); }
+  .projswitch .pname, .navitem .pname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .popmenu { position:fixed; z-index:70; max-width:320px; max-height:60vh; overflow:auto; display:flex; flex-direction:column; gap:2px; padding:6px; background:var(--panel-solid); border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 24px 60px -12px rgba(0,0,0,.45); animation:pop .18s cubic-bezier(.2,.8,.2,1) backwards; transform-origin:top left; }
+  .popmenu .navitem:hover { transform:none; }
+  .popmenu .navitem small { font-size:11px; font-weight:500; color:var(--faint); white-space:nowrap; }
+  .popmenu hr { border:none; border-top:1px solid var(--line); margin:4px 0; width:100%; }
+  .navlist { display:flex; flex-direction:column; gap:2px; flex:none; }
   .navitem.entry { padding-top:7px; padding-bottom:7px; }
-  .navitem.entry .pname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navitem.entry.open { color:var(--text); font-weight:600; }
   .navitem.entry .pcount { font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--faint); background:var(--gray-soft); padding:1px 7px; border-radius:999px; }
   .navitem.entry.active .pcount { color:var(--accent-ink); background:var(--accent-soft); }
   .navitem.add { color:var(--faint); font-size:12.5px; padding-top:6px; padding-bottom:6px; }
   .navitem.add svg { width:15px; height:15px; }
+  /* Configure and Import / Export belong to the open data set, so they hang under its row. */
+  .navtools { display:flex; flex-direction:column; gap:1px; flex:none; }
+  .navlist .navtools { margin:1px 0 6px 20px; padding-left:8px; border-left:1px solid var(--line-strong); }
+  .navlist .navtools .navitem { padding:6px 10px; gap:9px; font-size:13px; }
+  .navlist .navtools .navitem svg { width:15px; height:15px; }
