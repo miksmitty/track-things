@@ -18,7 +18,7 @@ If the port is already taken the server says so and stops. Find the other proces
 
 A **project** has its own people and one or more **data sets**. A data set is one list: its own columns, nested sub-record levels, rules and rows. Both are listed in the sidebar, where you can add more. Rename or delete them under Configure → General.
 
-A **Lookup** column links one data set to another in the same project. Pick the data set it looks up in Configure; each cell then chooses a row (or several, with "Allow multiple") from that data set's main grid. The cell shows the other row's first text column and stores its id, so renaming the other row keeps the link. Sorting, filtering, search and rules all work on the shown name. If the other row is deleted the cell shows it as missing.
+A **Lookup** column links one data set to another in the same project. Pick the data set it looks up in Configure; each cell then chooses a row (or several, with "Allow multiple") from that data set's main grid. Under **Show**, tick which of the other data set's fields the cell and its picker display, in the order you want them, for example Ref then Title; with none ticked it shows the first text column. The cell stores the other row's id, so renaming that row keeps the link. Sorting, filtering, search and rules all work on the shown name. If the other row is deleted the cell shows it as missing.
 
 ## Data
 

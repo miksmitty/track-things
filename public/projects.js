@@ -92,7 +92,7 @@
     projects = await fetch('api/projects').then(r => r.json());
     if (!projects.some(p => p.id === project)) { project = projects[0] ? projects[0].id : ''; set = ''; }
     sets = await fetch(projectApi('api/sets')).then(r => r.json());
-    sets.forEach(s => (s.byId = new Map(s.items.map(i => [i.id, i.label]))));   // record id -> label, for lookup columns
+    sets.forEach(s => (s.byId = new Map(s.items.map(i => [i.id, i]))));   // record id -> record, for lookup columns
     if (!sets.some(s => s.id === set)) {
       const last = store.get('tt-set-' + project);
       set = sets.some(s => s.id === last) ? last : sets[0] ? sets[0].id : '';
@@ -179,12 +179,39 @@
     refresh();
   }
 
+  // ---- lookups: what a lookup column shows for a record of the data set it points at ----
+  // One piece of text per field in the column's `show` list (blank ones left out); with no list, the record's
+  // default label. null when the record, or the whole data set, no longer exists.
+  const fieldText = (col, raw) => {
+    const v = String(raw ?? '').trim();
+    if (!v) return '';
+    if (col.type === 'checkbox') return v === 'true' ? col.label : '';
+    if (col.type === 'choice') return v.split('|').map(x => x.trim()).filter(Boolean).join(', ');
+    if (col.type === 'date' && typeof fmtDate === 'function') return fmtDate(v, col.format || 'native');   // the grid page's formatter
+    return v;
+  };
+  function lookupParts(c, id) {
+    const t = sets.find(s => s.id === c.set);
+    const item = t && t.byId.get(String(id));
+    if (!item) return null;
+    const parts = (c.show || []).map(k => t.columns.find(x => x.key === k)).filter(Boolean).map(col => fieldText(col, item.f[col.key])).filter(Boolean);
+    return parts.length ? parts : [item.label];
+  }
+  // The record a piece of imported text means: its id, what the column shows for it, its first shown field, or its default label.
+  function lookupFind(c, text) {
+    const t = sets.find(s => s.id === c.set), q = String(text ?? '').trim().toLowerCase();
+    if (!t || !q) return null;
+    if (t.byId.has(String(text).trim())) return String(text).trim();
+    const hit = t.items.find(i => { const p = lookupParts(c, i.id) || []; return p.join(' · ').toLowerCase() === q || (p[0] || '').toLowerCase() === q || i.label.toLowerCase() === q; });
+    return hit ? hit.id : null;
+  }
+
   window.TT = {
     get project() { return project; },
     get set() { return set; },
     projects: () => projects,
     sets: () => sets,
     setInfo: id => sets.find(s => s.id === id) || null,
-    api, href, ready, refresh, newProject, newSet, deleteProject, deleteSet, renameProject,
+    api, href, ready, refresh, newProject, newSet, deleteProject, deleteSet, renameProject, lookupParts, lookupFind,
   };
 })();

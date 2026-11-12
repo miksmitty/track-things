@@ -22,8 +22,9 @@ const TRASH_DIR = path.join(DATA_DIR, 'trash');         // deleted projects and 
 // `parent_id` of the level N-1 record it belongs to; that is the only join between levels.
 // On disk each level is its own CSV: level1.csv, level2.csv, …  (id, parent_id, …columns).
 //
-// A column of type 'lookup' ({ type: 'lookup', set: <set id>, multi? }) points at main-grid records of another
-// data set in the same project. Its cells hold the target record's id ('3', or '3|7' when multi).
+// A column of type 'lookup' ({ type: 'lookup', set: <set id>, multi?, show?: [column keys] }) points at main-grid
+// records of another data set in the same project. Its cells hold the target record's id ('3', or '3|7' when
+// multi). `show` lists which of the target's columns to display for it, in order; empty means its first text column.
 
 const DEFAULT_CONFIG = {
   title: 'Track Things',
@@ -283,17 +284,20 @@ function saveState(p, state) {
 }
 
 // ---- listings: what the sidebar shows, and what lookup columns pick from ----
-// A record's label is its first text column (else its first plain column), falling back to '#<id>'.
+// A record's default label is its first text column (else its first plain column), falling back to '#<id>'.
+// `columns` and each item's `f` (raw cell text per column) let a lookup column show other fields instead.
 function setSummary(pid, sid) {
   const p = setPaths(pid, sid);
   const config = readSetConfig(p);
   const cols = config.levels[0].columns;
   const labelCol = cols.find(c => c.type === 'text') || cols.find(c => !['notes', 'checkbox', 'lookup'].includes(c.type));
   const recs = readCsv(p.level(0));
+  const fields = cols.filter(c => c.type !== 'notes' && c.type !== 'lookup');
   return {
     id: sid, name: config.title, record: config.levels[0].title, rows: recs.length,
+    columns: fields.map(c => ({ key: c.key, label: c.label, type: c.type, ...(c.format ? { format: c.format } : {}) })),
     refs: [...new Set(config.levels.flatMap(l => l.columns).filter(c => c.type === 'lookup' && c.set).map(c => c.set))],   // data sets its lookup columns point at
-    items: recs.map(r => ({ id: String(r.id), label: (labelCol && String(r[labelCol.key] || '').trim()) || '#' + r.id })),
+    items: recs.map(r => ({ id: String(r.id), label: (labelCol && String(r[labelCol.key] || '').trim()) || '#' + r.id, f: Object.fromEntries(fields.map(c => [c.key, r[c.key] ?? ''])) })),
   };
 }
 const listSets = pid => readProject(pid).sets.map(sid => setSummary(pid, sid));

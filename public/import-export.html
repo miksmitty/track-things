@@ -313,8 +313,8 @@ function coerce(raw, c, opts, warn) {
     const parts = isMulti(c) ? v.split(/[|;]/).map(x => x.trim()).filter(Boolean) : [v.trim()].filter(Boolean);
     const found = [];
     parts.forEach(p => {
-      const hit = target && (target.byId.has(p) ? { id: p } : target.items.find(i => i.label.toLowerCase() === p.toLowerCase()));
-      if (hit) found.push(hit.id); else warn('"' + p + '" is not a row in ' + (target ? target.name : 'the data set ' + c.label + ' looks up') + '; left blank');
+      const hit = TT.lookupFind(c, p);
+      if (hit) found.push(hit); else warn('"' + p + '" is not a row in ' + (target ? target.name : 'the data set ' + c.label + ' looks up') + '; left blank');
     });
     return isMulti(c) ? found : found[0] || '';
   }

@@ -227,7 +227,17 @@
   td.multi:hover .add { color:var(--accent-ink); border-color:var(--accent); }
   td.lookup .pill { background:transparent; border:1px solid var(--line-strong); color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; }
   td.lookup .pill::before { content:"↗ "; font-size:9px; color:var(--accent-ink); }
+  td.lookup .pill b { font-weight:700; }
+  td.lookup .pill .sub { color:var(--muted); margin-left:6px; }
   td.lookup .pill.missing { border-style:dashed; color:var(--red); }
+  .menu.lookup .vrow .k1 { font-weight:600; white-space:nowrap; flex:none; }
+  .menu.lookup .vrow .k2 { flex:1; min-width:0; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .menu.lookup .vrow .k1.only { flex:1; font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+  .showchips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .showchips button { font-size:12px; font-weight:500; padding:3px 10px; border-radius:999px; border:1px solid var(--line-strong); background:transparent; color:var(--muted); }
+  .showchips button.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+  .showchips button i { font-style:normal; font-weight:800; margin-right:6px; }
+  .showchips .hint { font-size:12px; color:var(--faint); }
   td.lookup .pill.missing::before { content:"? "; color:var(--red); }
   td.lookup .unset { color:var(--faint); font-size:11.5px; font-style:italic; }
   .empty button.art { padding:0; border:none; cursor:pointer; transition:.15s; }
@@ -396,7 +406,9 @@ const multiVals = v => Array.isArray(v) ? v : v === '' || v == null ? [] : Strin
 // Lookup columns ({ type: 'lookup', set: <data set id>, multi? }) hold the id of a main-grid record in another data set
 // of this project. TT.setInfo(id) (projects.js) gives that data set's name and its records' labels.
 const isLookup = c => c.type === 'lookup';
-const lookupLabel = (c, id) => { const t = TT.setInfo(c.set); const l = t && t.byId.get(String(id)); return l != null ? l : 'Missing #' + id; };
+// A lookup shows the fields picked in Configure (column.show), e.g. Ref and Title; with none picked, the target's first text column.
+const lookupParts = (c, id) => TT.lookupParts(c, id) || ['Missing #' + id];
+const lookupLabel = (c, id) => lookupParts(c, id).join(' · ');
 // What a cell shows, as opposed to what it stores: for a lookup that is the target record's label, not its id.
 // Sorting, filtering, search and rules all work on this.
 const shown = (c, v) => !isLookup(c) ? v : isMulti(c) ? multiVals(v).map(id => lookupLabel(c, id)) : v === '' || v == null ? '' : lookupLabel(c, v);
@@ -1107,7 +1119,13 @@ function makeGrid(level, rows, ui, opts) {
     const paint = () => {
       pills.replaceChildren();
       if (!target && !ids().length) return pills.append(el('span', { className: 'unset', textContent: c.set ? 'Data set missing' : 'No data set chosen' }));
-      ids().forEach(id => pills.append(el('span', { className: 'pill' + (target && target.byId.has(id) ? '' : ' missing'), textContent: lookupLabel(c, id) })));
+      ids().forEach(id => {
+        const [first, ...rest] = lookupParts(c, id);
+        const pill = el('span', { className: 'pill' + (target && target.byId.has(id) ? '' : ' missing') }, rest.length ? el('b', { textContent: first }) : first);
+        if (rest.length) pill.append(el('span', { className: 'sub', textContent: rest.join(' · ') }));
+        pill.dataset.tip = lookupLabel(c, id);
+        pills.append(pill);
+      });
       if (multi || !ids().length) pills.append(el('span', { className: 'add', textContent: '+' }));
     };
     paint();
@@ -1117,8 +1135,14 @@ function makeGrid(level, rows, ui, opts) {
       if (!target) return toast(c.set ? 'The data set this column looks up no longer exists. Pick another in Configure.' : 'Choose which data set this column looks up in Configure.', true);
       const chosen = new Set(ids());
       // Everything that can be picked, plus anything already chosen that is no longer in the other data set.
-      const all = [...target.items, ...[...chosen].filter(id => !target.byId.has(id)).map(id => ({ id, label: lookupLabel(c, id) }))];
-      const m = (menuEl = el('div', { className: 'menu people' }));
+      const all = [...target.items.map(i => i.id), ...[...chosen].filter(id => !target.byId.has(id))].map(id => ({ id, parts: lookupParts(c, id), label: lookupLabel(c, id) }));
+      const wide = all.some(i => i.parts.length > 1);
+      const k1 = Math.min(18, Math.max(0, ...all.map(i => i.parts[0].length))) + 1;   // first field in an even column
+      const fields = i => wide
+        ? [el('span', { className: 'k1', textContent: i.parts[0], style: 'min-width:' + k1 + 'ch' }), el('span', { className: 'k2', textContent: i.parts.slice(1).join(' · ') })]
+        : [el('span', { className: 'k1 only', textContent: i.parts[0] })];
+      const m = (menuEl = el('div', { className: 'menu people lookup' }));
+      if (wide) m.style.width = '400px';
       const q = el('input', { placeholder: 'Search ' + target.name + '…' });
       const list = el('div', { className: 'vals' });
       let dirty = false, hi = 0;
@@ -1132,9 +1156,9 @@ function makeGrid(level, rows, ui, opts) {
           if (multi) {
             const cb = el('input', { type: 'checkbox', checked: chosen.has(i.id) });
             cb.onchange = () => { cb.checked ? chosen.add(i.id) : chosen.delete(i.id); row[c.key] = all.map(x => x.id).filter(id => chosen.has(id)); save(); paint(); dirty = true; };
-            list.append(el('label', { className: 'vrow' + (n === hi ? ' hi' : '') }, cb, el('span', { textContent: i.label })));
+            list.append(el('label', { className: 'vrow' + (n === hi ? ' hi' : '') }, cb, ...fields(i)));
           } else {
-            list.append(el('div', { className: 'vrow' + (n === hi ? ' hi' : ''), onclick: () => pick(i.id) }, el('span', { textContent: i.label, style: 'flex:1' }), chosen.has(i.id) ? el('span', { className: 'tick', textContent: '✓' }) : ''));
+            list.append(el('div', { className: 'vrow' + (n === hi ? ' hi' : ''), onclick: () => pick(i.id) }, ...fields(i), chosen.has(i.id) ? el('span', { className: 'tick', textContent: '✓' }) : ''));
           }
         });
         if (!vis.length) list.append(el('div', { className: 'aggrow', textContent: all.length ? 'Nothing matches.' : target.name + ' has no rows yet.' }));
@@ -1570,10 +1594,29 @@ function openConfig() {
           others.forEach(x => pick.append(el('option', { value: x.id, textContent: x.name + ' (' + plural(x.rows, 'row') + ')' })));
           if (c.set && !others.some(x => x.id === c.set)) pick.append(el('option', { value: c.set, textContent: c.set + ' (missing)' }));
           pick.value = c.set || '';
-          pick.onchange = () => (c.set = pick.value);
+          // Which of the other data set's fields the cell and its picker show, in the order they are ticked.
+          const chips = el('div', { className: 'showchips' });
+          const drawChips = () => {
+            const t = TT.setInfo(c.set);
+            c.show = (c.show || []).filter(k => t && t.columns.some(x => x.key === k));
+            chips.replaceChildren();
+            if (!t) return chips.append(el('span', { className: 'hint', textContent: 'Choose a data set first.' }));
+            t.columns.forEach(x => {
+              const at = c.show.indexOf(x.key);
+              const b = el('button', { type: 'button', className: at >= 0 ? 'on' : '', onclick: () => { at >= 0 ? c.show.splice(at, 1) : c.show.push(x.key); drawChips(); } });
+              if (at >= 0) b.append(el('i', { textContent: at + 1 }));
+              b.append(x.label);
+              chips.append(b);
+            });
+            const first = t.columns.find(x => x.type === 'text') || t.columns[0];
+            if (!c.show.length) chips.append(el('span', { className: 'hint', textContent: first ? 'None ticked: shows ' + first.label + '.' : 'That data set has no columns yet.' }));
+          };
+          pick.onchange = () => { c.set = pick.value; c.show = []; drawChips(); };
           const multi = el('input', { type: 'checkbox', checked: !!c.multi });
           multi.onchange = () => (c.multi = multi.checked);
           setting(small('Looks up a row in'), pick, el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);white-space:nowrap' }, multi, 'Allow multiple'));
+          drawChips();
+          setting(small('Show'), chips);
           if (!others.length) box.append(el('p', { className: 'sub', style: 'margin:-4px 0 10px 22px', textContent: 'Create another data set with “New data set” in the sidebar, then point this column at it.' }));
         }
         if (c.type === 'choice') {
@@ -1640,7 +1683,7 @@ function openConfig() {
             if (![...opSel.options].some(o => o.value === w.op)) { w.op = opSel.options[0].value; opSel.value = w.op; }
             const needs = OP_NEEDS_VALUE.has(w.op);
             const full = c && lvl.columns.find(x => (x.key || x.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')) === c.key);
-            const list = !c ? null : c.type === 'choice' ? (full && full.options || []).filter(Boolean) : c.type === 'person' ? draft.people.map(p => p.name.trim()).filter(Boolean) : c.type === 'lookup' ? ((TT.setInfo(full && full.set) || { items: [] }).items.map(i => i.label)) : null;
+            const list = !c ? null : c.type === 'choice' ? (full && full.options || []).filter(Boolean) : c.type === 'person' ? draft.people.map(p => p.name.trim()).filter(Boolean) : c.type === 'lookup' ? ((TT.setInfo(full && full.set) || { items: [] }).items.map(i => lookupLabel(full, i.id))) : null;
             if (needs && list && ['is', 'isNot'].includes(w.op)) {
               pickVal.replaceChildren(el('option', { value: '', textContent: 'Choose…', disabled: true }));
               const cur = String(w.value ?? '');
@@ -1747,7 +1790,7 @@ function openConfig() {
           if (Object.keys(colors).length) out.colors = colors;
           if (c.multi) out.multi = true;
         }
-        if (c.type === 'lookup') { out.set = c.set || ''; if (c.multi) out.multi = true; }
+        if (c.type === 'lookup') { out.set = c.set || ''; if (c.multi) out.multi = true; if (Array.isArray(c.show) && c.show.length) out.show = c.show.slice(); }
         if (c.agg && aggOptions(out).includes(c.agg)) out.agg = c.agg;
         return out;
       });
