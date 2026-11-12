@@ -28,6 +28,7 @@
     }
   ],
   "sets": [
-    "use-case"
+    "use-case",
+    "vendors"
   ]
 }

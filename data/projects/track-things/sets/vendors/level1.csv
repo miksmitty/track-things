@@ -1,0 +1,9 @@
+id,name,category,country,preferred,contract_end
+1,Acme Software,Software,UK,true,2027-03-31
+2,Globex Hosting,Hosting,Ireland,true,2027-06-30
+3,Initech Consulting,Consulting,UK,false,2026-12-31
+4,Umbrella Hardware,Hardware,Germany,false,2027-01-15
+5,Hooli Cloud,Hosting,USA,false,2027-09-30
+6,Stark Devices,Hardware,USA,true,2028-02-28
+7,Wonka Analytics,Software,Netherlands,false,2026-11-30
+8,Wayne Advisory,Consulting,UK,true,2027-04-30

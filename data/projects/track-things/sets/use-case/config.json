@@ -71,6 +71,16 @@
           "key": "notes",
           "label": "Notes",
           "type": "notes"
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "type": "lookup",
+          "set": "vendors",
+          "show": [
+            "category",
+            "name"
+          ]
         }
       ],
       "rules": [

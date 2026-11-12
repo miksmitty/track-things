@@ -1,0 +1,51 @@
+{
+  "title": "Vendors",
+  "levels": [
+    {
+      "title": "Vendor",
+      "columns": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "look": "plain",
+          "agg": "count"
+        },
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "choice",
+          "options": [
+            "Software",
+            "Hardware",
+            "Consulting",
+            "Hosting"
+          ],
+          "colors": {
+            "Software": "blue",
+            "Hardware": "amber",
+            "Consulting": "accent",
+            "Hosting": "teal"
+          }
+        },
+        {
+          "key": "country",
+          "label": "Country",
+          "type": "text",
+          "look": "plain"
+        },
+        {
+          "key": "preferred",
+          "label": "Preferred",
+          "type": "checkbox"
+        },
+        {
+          "key": "contract_end",
+          "label": "Contract end",
+          "type": "date"
+        }
+      ],
+      "rules": []
+    }
+  ]
+}
