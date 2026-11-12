@@ -1,32 +1,5 @@
 {
-  "title": "Track Things",
-  "people": [
-    {
-      "name": "Mike Smith",
-      "color": "teal"
-    },
-    {
-      "name": "Roger Ramjet"
-    },
-    {
-      "name": "Julie Jaybird"
-    },
-    {
-      "name": "Super Man"
-    },
-    {
-      "name": "Dan"
-    },
-    {
-      "name": "Eve"
-    },
-    {
-      "name": "Even"
-    },
-    {
-      "name": "Mike fddf"
-    }
-  ],
+  "title": "Use Case",
   "levels": [
     {
       "title": "Use Case",

@@ -1,3 +1,4 @@
 node_modules/
-data/snapshots/
-data/*.migrated
+data/**/snapshots/
+data/**/*.migrated
+data/trash/
