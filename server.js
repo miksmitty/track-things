@@ -5,14 +5,26 @@ const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3160;
 const PUBLIC = path.join(__dirname, 'public');
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
+const PROJECTS_DIR = path.join(DATA_DIR, 'projects');   // one folder per project
+const TRASH_DIR = path.join(DATA_DIR, 'trash');         // deleted projects and data sets are moved here, never erased
 
 // Data model
 // ----------
-// config.levels[0] is the main grid; levels[1], levels[2], … are nested sub-record grids.
+// A project holds people and one or more data sets:
+//   data/projects/<project id>/project.json          { title, people, sets: [ids in display order] }
+//   data/projects/<project id>/sets/<set id>/        config.json, level1.csv, level2.csv, …, snapshots/
+// Ids are folder names (a slug of the name the thing was created with). Every API call takes
+// ?project=<id>&set=<id>; a missing one means the first project / the project's first data set.
+//
+// Within a data set: config.levels[0] is the main grid; levels[1], levels[2], … are nested sub-record grids.
 // Every record at every level has an `id` primary key. A record at level N stores the
 // `parent_id` of the level N-1 record it belongs to; that is the only join between levels.
-// On disk each level is its own CSV: data/level1.csv, data/level2.csv, …  (id, parent_id, …columns).
+// On disk each level is its own CSV: level1.csv, level2.csv, …  (id, parent_id, …columns).
+//
+// A column of type 'lookup' ({ type: 'lookup', set: <set id>, multi?, show?: [column keys] }) points at main-grid
+// records of another data set in the same project. Its cells hold the target record's id ('3', or '3|7' when
+// multi). `show` lists which of the target's columns to display for it, in order; empty means its first text column.
 
 const DEFAULT_CONFIG = {
   title: 'Track Things',
@@ -38,20 +50,35 @@ const DEFAULT_CONFIG = {
   ],
 };
 
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
-const levelFile = i => path.join(DATA_DIR, `level${i + 1}.csv`);
-// Files used before levels were introduced (one main grid + one sub grid).
-const LEGACY_MAIN = path.join(DATA_DIR, 'main.csv');
-const LEGACY_SUB = path.join(DATA_DIR, 'sub.csv');
-const MINUTES_DIR = path.join(DATA_DIR, 'minutes');  // legacy: one <record id>.html per record, folded into a notes column on first start
-const SNAP_DIR = path.join(DATA_DIR, 'snapshots');   // automatic safety copies taken before an import or restore
 const MAX_SNAPSHOTS = 30;
 
-// Record ids are plain integers, allocated from a counter seeded with the highest id on disk.
-let idCounter = 0;
+const safeId = id => /^[a-z0-9][a-z0-9-]{0,63}$/.test(String(id || ''));
+const slugify = name => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'untitled';
+const uniqueIn = (dir, base) => { let id = base, n = 2; while (fs.existsSync(path.join(dir, id))) id = base + '-' + n++; return id; };
+const readJson = (f, fallback) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fallback; } };
+const subdirs = dir => fs.existsSync(dir) ? fs.readdirSync(dir).filter(d => safeId(d) && fs.statSync(path.join(dir, d)).isDirectory()) : [];
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const clone = o => JSON.parse(JSON.stringify(o));
+
+const projectDir = pid => path.join(PROJECTS_DIR, pid);
+const projectFile = pid => path.join(projectDir(pid), 'project.json');
+const setsDir = pid => path.join(projectDir(pid), 'sets');
+// Every file of one data set. `p` is passed to everything that reads or writes a data set.
+function setPaths(pid, sid) {
+  const dir = path.join(setsDir(pid), sid);
+  return {
+    project: pid, set: sid, dir,
+    config: path.join(dir, 'config.json'),
+    level: i => path.join(dir, 'level' + (i + 1) + '.csv'),
+    legacyMain: path.join(dir, 'main.csv'),      // files used before levels were introduced (one main grid + one sub grid)
+    legacySub: path.join(dir, 'sub.csv'),
+    minutes: path.join(dir, 'minutes'),          // legacy: one <record id>.html per record, folded into a notes column on first start
+    snapshots: path.join(dir, 'snapshots'),      // automatic safety copies taken before an import or restore
+  };
+}
+
+// Record ids are plain integers, unique within a data set. The page allocates them; anything else is renumbered on save.
 const isIntId = id => /^[1-9]\d*$/.test(String(id ?? ''));
-const seedIds = ids => { for (const id of ids) if (isIntId(id)) idCounter = Math.max(idCounter, Number(id)); };
-const newId = () => String(++idCounter);
 const allIds = rows => (rows || []).flatMap(r => [r.id, ...allIds(r.children)]);
 
 function toCsv(header, records) {
@@ -89,7 +116,7 @@ function typed(rec, cols) {
     const v = rec[c.key] ?? '';
     out[c.key] = c.type === 'checkbox' ? v === 'true'
       : c.type === 'number' && v !== '' ? Number(v)
-      : c.type === 'choice' && c.multi ? String(v).split('|').map(x => x.trim()).filter(Boolean)   // multi-choice: 'a|b' on disk, array in memory
+      : (c.type === 'choice' || c.type === 'lookup') && c.multi ? String(v).split('|').map(x => x.trim()).filter(Boolean)   // multi choice / lookup: 'a|b' on disk, array in memory
       : v;
   }
   return out;
@@ -102,14 +129,14 @@ const readCsv = f => { try { return parseCsv(decodeCsv(fs.readFileSync(f))); } c
 
 // Accept either the new {levels:[…]} shape or the old {columns, subColumns, subTitle} shape.
 function normaliseConfig(raw) {
-  const cfg = { title: raw.title || 'Track Things', people: Array.isArray(raw.people) ? raw.people : [], levels: [] };   // people: avatar colour / initials per name used in owner-style columns
+  const cfg = { title: raw.title || 'Untitled', people: Array.isArray(raw.people) ? raw.people : [], levels: [] };   // people: avatar colour / initials per name used in owner-style columns
   if (Array.isArray(raw.levels) && raw.levels.length) {
     cfg.levels = raw.levels.map((l, i) => ({ title: l.title || (i ? `Level ${i + 1}` : 'Rows'), columns: Array.isArray(l.columns) ? l.columns : [], rules: Array.isArray(l.rules) ? l.rules : undefined }));
   } else {
     cfg.levels.push({ title: 'Rows', columns: raw.columns || [] });
     if (raw.subColumns && raw.subColumns.length) cfg.levels.push({ title: raw.subTitle || 'Items', columns: raw.subColumns });
   }
-  if (!cfg.levels.length) cfg.levels = DEFAULT_CONFIG.levels;
+  if (!cfg.levels.length) cfg.levels = clone(DEFAULT_CONFIG.levels);
   // Presentation and rules are explicit settings. A level from an older config (no `rules` list yet) gets a one-off
   // conversion: its old name-based guesses, or its earlier deadline/done flags, become ordinary rules it can edit or delete.
   for (const lvl of cfg.levels) {
@@ -142,16 +169,31 @@ function normaliseConfig(raw) {
   return cfg;
 }
 
-function loadState() {
-  let config;
-  try { config = normaliseConfig(JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))); }
-  catch { return { config: normaliseConfig(DEFAULT_CONFIG), rows: [] }; }
+// ---- projects: title, shared people directory and the order of their data sets ----
+function readProject(pid) {
+  const j = readJson(projectFile(pid), {});
+  const onDisk = subdirs(setsDir(pid));
+  const order = (Array.isArray(j.sets) ? j.sets : []).filter(id => onDisk.includes(id));
+  return { title: j.title || pid, people: Array.isArray(j.people) ? j.people : [], sets: [...order, ...onDisk.filter(id => !order.includes(id)).sort()] };
+}
+function writeProject(pid, proj) {
+  fs.mkdirSync(projectDir(pid), { recursive: true });
+  writeAtomic(projectFile(pid), JSON.stringify({ title: proj.title, people: proj.people || [], sets: proj.sets || [] }, null, 2));
+}
+const projectIds = () => subdirs(PROJECTS_DIR).filter(id => fs.existsSync(projectFile(id)));
+const projectExists = id => safeId(id) && fs.existsSync(projectFile(id));
+const setExists = (pid, sid) => safeId(sid) && fs.existsSync(path.join(setsDir(pid), sid));
+const readSetConfig = p => normaliseConfig(readJson(p.config, null) || clone(DEFAULT_CONFIG));
+
+function loadState(p) {
+  const proj = readProject(p.project);
+  const config = readSetConfig(p);
+  config.people = proj.people;   // people belong to the project and are shared by its data sets
 
   // Flat records per level, then stitch children onto parents by parent_id.
   const flat = config.levels.map((lvl, i) => {
-    let recs = readCsv(levelFile(i));
-    if (!recs.length && !fs.existsSync(levelFile(i))) recs = readCsv(i === 0 ? LEGACY_MAIN : i === 1 ? LEGACY_SUB : '');
-    seedIds(recs.map(r => r.id));
+    let recs = readCsv(p.level(i));
+    if (!recs.length && !fs.existsSync(p.level(i))) recs = readCsv(i === 0 ? p.legacyMain : i === 1 ? p.legacySub : '');
     return recs.map(r => ({ ...typed(r, lvl.columns), parent_id: r.parent_id || '' }));
   });
   const attach = (level, parentId) => {
@@ -163,7 +205,7 @@ function loadState() {
         return kids ? { ...rec, children: kids } : rec;
       });
   };
-  return { config, rows: attach(0, null) };
+  return { project: p.project, set: p.set, projectName: proj.title, config, rows: attach(0, null) };
 }
 
 // ---- notes columns: rich text (HTML) stored in the CSV cell ----
@@ -174,9 +216,10 @@ const cleanHtml = html => String(html ?? '')
   .replace(/\s(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
 const emptyHtml = html => !html || /^(<p>(<br\s*\/?>|\s|&nbsp;)*<\/p>|\s)*$/i.test(html);
 
-// Legacy: notes used to live in data/minutes/<id>.html for every record. On first start after the change they
+// Legacy: notes used to live in a minutes/<id>.html file for every record. On first start after the change they
 // move into a 'Notes' column on each level that had any, and the folder is set aside.
-function migrateMinutes(state) {
+function migrateMinutes(p, state) {
+  const MINUTES_DIR = p.minutes;
   if (!fs.existsSync(MINUTES_DIR)) return false;
   const files = new Map();
   for (const f of fs.readdirSync(MINUTES_DIR)) {
@@ -205,12 +248,17 @@ function writeAtomic(file, text) {
   fs.renameSync(file + '.tmp', file);
 }
 
-function saveState(state) {
+function saveState(p, state) {
   const config = normaliseConfig(state.config);
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(p.dir, { recursive: true });
+  // People are stored once, on the project; everything else in the config is this data set's own.
+  const { people, ...setConfig } = config;
+  const proj = readProject(p.project);
+  if (Array.isArray(state.config.people) && JSON.stringify(people) !== JSON.stringify(proj.people)) writeProject(p.project, { ...proj, people });
   const flat = config.levels.map(() => []);
   const seen = new Set();
-  seedIds(allIds(state.rows));
+  let idCounter = allIds(state.rows).reduce((m, id) => isIntId(id) ? Math.max(m, Number(id)) : m, 0);
+  const newId = () => String(++idCounter);
   const walk = (rows, level, parentId) => {
     if (level >= config.levels.length) return;
     for (const r of rows || []) {
@@ -223,33 +271,141 @@ function saveState(state) {
     }
   };
   walk(state.rows, 0, '');
-  writeAtomic(CONFIG_FILE, JSON.stringify(config, null, 2));
+  writeAtomic(p.config, JSON.stringify(setConfig, null, 2));
   config.levels.forEach((lvl, i) => {
     const header = i === 0 ? ['id'] : ['id', 'parent_id'];
-    writeAtomic(levelFile(i), toCsv([...header, ...lvl.columns.map(c => c.key)], flat[i]));
+    writeAtomic(p.level(i), toCsv([...header, ...lvl.columns.map(c => c.key)], flat[i]));
   });
   // Drop files for levels that no longer exist.
-  for (let i = config.levels.length; fs.existsSync(levelFile(i)); i++) fs.unlinkSync(levelFile(i));
+  for (let i = config.levels.length; fs.existsSync(p.level(i)); i++) fs.unlinkSync(p.level(i));
   // Legacy files are superseded by level files once we have written them; keep them aside, unread.
-  for (const f of [LEGACY_MAIN, LEGACY_SUB]) if (fs.existsSync(f)) fs.renameSync(f, f + '.migrated');
-  return loadState();
+  for (const f of [p.legacyMain, p.legacySub]) if (fs.existsSync(f)) fs.renameSync(f, f + '.migrated');
+  return loadState(p);
+}
+
+// ---- listings: what the sidebar shows, and what lookup columns pick from ----
+// A record's default label is its first text column (else its first plain column), falling back to '#<id>'.
+// `columns` and each item's `f` (raw cell text per column) let a lookup column show other fields instead.
+function setSummary(pid, sid) {
+  const p = setPaths(pid, sid);
+  const config = readSetConfig(p);
+  const cols = config.levels[0].columns;
+  const labelCol = cols.find(c => c.type === 'text') || cols.find(c => !['notes', 'checkbox', 'lookup'].includes(c.type));
+  const recs = readCsv(p.level(0));
+  const fields = cols.filter(c => c.type !== 'notes' && c.type !== 'lookup');
+  return {
+    id: sid, name: config.title, record: config.levels[0].title, rows: recs.length,
+    columns: fields.map(c => ({ key: c.key, label: c.label, type: c.type, ...(c.format ? { format: c.format } : {}) })),
+    refs: [...new Set(config.levels.flatMap(l => l.columns).filter(c => c.type === 'lookup' && c.set).map(c => c.set))],   // data sets its lookup columns point at
+    items: recs.map(r => ({ id: String(r.id), label: (labelCol && String(r[labelCol.key] || '').trim()) || '#' + r.id, f: Object.fromEntries(fields.map(c => [c.key, r[c.key] ?? ''])) })),
+  };
+}
+const listSets = pid => readProject(pid).sets.map(sid => setSummary(pid, sid));
+function projectSummary(pid) {
+  const proj = readProject(pid);
+  const st = fs.statSync(projectDir(pid));
+  return { id: pid, name: proj.title, sets: proj.sets.length, rows: proj.sets.reduce((n, sid) => n + readCsv(setPaths(pid, sid).level(0)).length, 0),
+    created: (st.birthtime.getTime() ? st.birthtime : st.mtime).toISOString() };
+}
+const listProjects = () => projectIds().map(projectSummary).sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
+
+// A new data set starts empty, with the default columns or a copy of another data set's configuration.
+function createSet(pid, name, template) {
+  const proj = readProject(pid);
+  fs.mkdirSync(setsDir(pid), { recursive: true });
+  const sid = uniqueIn(setsDir(pid), slugify(name));
+  const config = template && setExists(pid, template) ? readSetConfig(setPaths(pid, template)) : clone(DEFAULT_CONFIG);
+  config.title = String(name || '').trim() || 'Untitled';
+  writeProject(pid, { ...proj, sets: [...proj.sets, sid] });
+  saveState(setPaths(pid, sid), { config: { title: config.title, levels: config.levels }, rows: [] });
+  return sid;
+}
+function renameSet(p, name) {
+  const config = { ...readSetConfig(p), title: String(name || '').trim() };
+  if (!config.title) return;
+  const { people, ...setConfig } = config;
+  writeAtomic(p.config, JSON.stringify(setConfig, null, 2));
+}
+// A new project starts with one data set, or with empty copies of every data set of another project (and its people).
+function createProject(name, template) {
+  fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+  const pid = uniqueIn(PROJECTS_DIR, slugify(name));
+  const title = String(name || '').trim() || 'Untitled project';
+  if (template && projectExists(template)) {
+    const src = readProject(template);
+    writeProject(pid, { title, people: src.people, sets: [] });
+    const map = new Map();   // template set id -> new set id, so lookups keep pointing at the matching copy
+    src.sets.forEach(sid => map.set(sid, createSet(pid, readSetConfig(setPaths(template, sid)).title, null)));
+    src.sets.forEach(sid => {
+      const config = readSetConfig(setPaths(template, sid));
+      config.levels.forEach(l => l.columns.forEach(c => { if (c.type === 'lookup' && map.has(c.set)) c.set = map.get(c.set); }));
+      saveState(setPaths(pid, map.get(sid)), { config: { title: config.title, levels: config.levels }, rows: [] });
+    });
+  } else {
+    writeProject(pid, { title, people: [], sets: [] });
+    createSet(pid, 'Main', null);
+  }
+  return pid;
+}
+// Deleting moves the folder to data/trash/ so a mistake can be undone by hand.
+function trash(dir, name) {
+  fs.mkdirSync(TRASH_DIR, { recursive: true });
+  fs.renameSync(dir, path.join(TRASH_DIR, name + '-' + stamp()));
+}
+
+// ---- layout migration, run once at startup ----
+// 1. data/config.json + data/level*.csv (single tracker)      -> data/projects/<slug>/
+// 2. data/projects/<id>/config.json (one data set per project) -> data/projects/<id>/project.json + sets/<slug>/
+function migrateLayout() {
+  fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+  const dataFile = f => f === 'config.json' || /^level\d+\.csv$/.test(f) || f === 'main.csv' || f === 'sub.csv' || f === 'minutes' || f === 'snapshots' || f.endsWith('.migrated');
+  const flat = fs.readdirSync(DATA_DIR).filter(dataFile);
+  if (flat.some(f => f === 'config.json' || f.endsWith('.csv'))) {
+    const title = (readJson(path.join(DATA_DIR, 'config.json'), {}) || {}).title || 'Track Things';
+    const dir = path.join(PROJECTS_DIR, uniqueIn(PROJECTS_DIR, slugify(title)));
+    fs.mkdirSync(dir, { recursive: true });
+    for (const f of flat) fs.renameSync(path.join(DATA_DIR, f), path.join(dir, f));
+    console.log('moved existing data into ' + path.relative(DATA_DIR, dir) + '/');
+  }
+  for (const pid of subdirs(PROJECTS_DIR)) {
+    if (fs.existsSync(projectFile(pid))) continue;
+    const dir = projectDir(pid);
+    const old = readJson(path.join(dir, 'config.json'), null) || {};
+    const record = (Array.isArray(old.levels) && old.levels[0] && old.levels[0].title) || '';
+    const name = record && record !== 'Rows' ? record : 'Main';
+    const sid = slugify(name);
+    const entries = fs.readdirSync(dir).filter(f => f !== 'sets');
+    fs.mkdirSync(path.join(setsDir(pid), sid), { recursive: true });
+    for (const f of entries) fs.renameSync(path.join(dir, f), path.join(setsDir(pid), sid, f));
+    writeProject(pid, { title: old.title || pid, people: Array.isArray(old.people) ? old.people : [], sets: [sid] });
+    const p = setPaths(pid, sid);
+    if (fs.existsSync(p.config)) { const { people, ...rest } = old; writeAtomic(p.config, JSON.stringify({ ...rest, title: name }, null, 2)); }
+    console.log('project ' + pid + ': data moved into the data set "' + name + '"');
+  }
+  if (!projectIds().length) createProject('Track Things');
+  // Per data set: legacy minutes files become a notes column, and records saved before ids were integers are renumbered.
+  for (const pid of projectIds()) for (const sid of readProject(pid).sets) {
+    const p = setPaths(pid, sid);
+    const st = loadState(p);
+    const movedNotes = migrateMinutes(p, st);
+    if (movedNotes || allIds(st.rows).some(id => !isIntId(id))) saveState(p, st);
+  }
 }
 
 // ---- snapshots: whole-state JSON files written before anything bulk-replaces the data ----
-const backupJson = () => JSON.stringify({ app: 'track-things', format: 1, exportedAt: new Date().toISOString(), ...loadState() }, null, 2);
+const backupJson = p => JSON.stringify({ app: 'track-things', format: 1, exportedAt: new Date().toISOString(), ...loadState(p) }, null, 2);
 const snapName = n => /^[\w.-]+\.json$/.test(n) && !n.includes('..');
-function takeSnapshot(reason) {
-  fs.mkdirSync(SNAP_DIR, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const name = `${stamp}-${(reason || 'manual').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`;
-  writeAtomic(path.join(SNAP_DIR, name), backupJson());
-  listSnapshots().slice(MAX_SNAPSHOTS).forEach(sn => fs.unlinkSync(path.join(SNAP_DIR, sn.name)));
+function takeSnapshot(p, reason) {
+  fs.mkdirSync(p.snapshots, { recursive: true });
+  const name = stamp() + '-' + (reason || 'manual').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.json';
+  writeAtomic(path.join(p.snapshots, name), backupJson(p));
+  listSnapshots(p).slice(MAX_SNAPSHOTS).forEach(sn => fs.unlinkSync(path.join(p.snapshots, sn.name)));
   return name;
 }
-function listSnapshots() {
-  if (!fs.existsSync(SNAP_DIR)) return [];
-  return fs.readdirSync(SNAP_DIR).filter(snapName).map(name => {
-    const st = fs.statSync(path.join(SNAP_DIR, name));
+function listSnapshots(p) {
+  if (!fs.existsSync(p.snapshots)) return [];
+  return fs.readdirSync(p.snapshots).filter(snapName).map(name => {
+    const st = fs.statSync(path.join(p.snapshots, name));
     return { name, size: st.size, time: st.mtime.toISOString() };
   }).sort((a, b) => b.name.localeCompare(a.name));
 }
@@ -257,51 +413,99 @@ function listSnapshots() {
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 const sendJson = (res, obj, code = 200) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)); };
 
-http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  // Behind a proxy the app may be served under a path prefix (e.g. /proxy/3160/) that isn't stripped:
-  // API and data routes are matched from their own segment on, and static files fall back to their name alone.
-  const at = url.pathname.search(/\/(api|data)\//);
-  const route = at >= 0 ? url.pathname.slice(at) : url.pathname;
-  if (route === '/api/state') {
-    if (req.method === 'GET') {
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify(loadState()));
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); migrateLayout(); } catch (e) { console.error('startup migration failed', e); }
+
+const fail = (res, code, msg) => { res.statusCode = code; res.end(msg); };
+const readBody = req => new Promise((ok, no) => { let b = ''; req.on('data', c => (b += c)); req.on('end', () => ok(b)); req.on('error', no); });
+
+// Which data set a request is about. An unknown id is a 404, never a silent fallback to some other data.
+function resolveSet(url) {
+  const pid = url.searchParams.get('project') || (listProjects()[0] || {}).id;
+  if (!projectExists(pid)) return null;
+  const sid = url.searchParams.get('set') || readProject(pid).sets[0];
+  return setExists(pid, sid) ? setPaths(pid, sid) : null;
+}
+
+async function api(req, res, url, route) {
+  // ---- projects ----
+  if (route === '/api/projects' && req.method === 'GET') return sendJson(res, listProjects());
+  if (route === '/api/projects' && req.method === 'POST') {
+    const b = JSON.parse(await readBody(req) || '{}');
+    if (!String(b.name || '').trim()) return fail(res, 400, 'name required');
+    return sendJson(res, projectSummary(createProject(b.name, b.template)), 201);
+  }
+  const pm = route.match(/^\/api\/projects\/([^/]+)$/);
+  if (pm) {
+    const pid = decodeURIComponent(pm[1]);
+    if (!projectExists(pid)) return fail(res, 404, 'no such project');
+    if (req.method === 'PATCH') {
+      const b = JSON.parse(await readBody(req) || '{}');
+      if (String(b.name || '').trim()) writeProject(pid, { ...readProject(pid), title: String(b.name).trim() });
+      return sendJson(res, projectSummary(pid));
     }
+    if (req.method === 'DELETE') {
+      if (projectIds().length <= 1) return fail(res, 400, 'cannot delete the only project');
+      trash(projectDir(pid), pid);
+      return sendJson(res, { ok: true });
+    }
+    return sendJson(res, projectSummary(pid));
+  }
+
+  // ---- data sets of one project ----
+  if (route === '/api/sets' || route.startsWith('/api/sets/')) {
+    const pid = url.searchParams.get('project') || (listProjects()[0] || {}).id;
+    if (!projectExists(pid)) return fail(res, 404, 'no such project');
+    if (route === '/api/sets' && req.method === 'GET') return sendJson(res, listSets(pid));
+    if (route === '/api/sets' && req.method === 'POST') {
+      const b = JSON.parse(await readBody(req) || '{}');
+      if (!String(b.name || '').trim()) return fail(res, 400, 'name required');
+      return sendJson(res, setSummary(pid, createSet(pid, b.name, b.template)), 201);
+    }
+    const sid = decodeURIComponent(route.slice('/api/sets/'.length));
+    if (!setExists(pid, sid)) return fail(res, 404, 'no such data set');
+    if (req.method === 'PATCH') {
+      const b = JSON.parse(await readBody(req) || '{}');
+      renameSet(setPaths(pid, sid), b.name);
+      return sendJson(res, setSummary(pid, sid));
+    }
+    if (req.method === 'DELETE') {
+      const proj = readProject(pid);
+      if (proj.sets.length <= 1) return fail(res, 400, 'cannot delete the only data set');
+      trash(path.join(setsDir(pid), sid), pid + '--' + sid);
+      writeProject(pid, { ...proj, sets: proj.sets.filter(x => x !== sid) });
+      return sendJson(res, { ok: true });
+    }
+    return sendJson(res, setSummary(pid, sid));
+  }
+
+  // ---- everything below is about one data set ----
+  const p = resolveSet(url);
+  if (!p) return fail(res, 404, 'no such project or data set');
+  if (route === '/api/state') {
+    if (req.method === 'GET') return sendJson(res, loadState(p));
     if (req.method === 'PUT') {
-      let body = '';
-      req.on('data', c => (body += c));
-      req.on('end', () => {
-        try {
-          const s = JSON.parse(body);
-          if (!s.config || !Array.isArray(s.rows)) throw new Error('bad state');
-          const snapshot = url.searchParams.get('snapshot');          // import/restore asks for a safety copy first
-          const snapshotName = snapshot ? takeSnapshot(snapshot) : null;
-          const saved = saveState(s);
-          if (snapshotName) saved.snapshot = snapshotName;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(saved));
-        } catch (e) {
-          res.statusCode = 400;
-          res.end(e.message);
-        }
-      });
-      return;
+      const s = JSON.parse(await readBody(req));
+      if (!s.config || !Array.isArray(s.rows)) return fail(res, 400, 'bad state');
+      const snapshot = url.searchParams.get('snapshot');          // import/restore asks for a safety copy first
+      const snapshotName = snapshot ? takeSnapshot(p, snapshot) : null;
+      const saved = saveState(p, s);
+      if (snapshotName) saved.snapshot = snapshotName;
+      return sendJson(res, saved);
     }
   }
   if (route === '/api/backup') {
-    const name = 'track-things-' + new Date().toISOString().slice(0, 10) + '.json';
+    const name = p.project + '-' + p.set + '-' + new Date().toISOString().slice(0, 10) + '.json';
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
-    return res.end(backupJson());
+    return res.end(backupJson(p));
   }
-  if (route === '/api/snapshots' && req.method === 'GET') return sendJson(res, listSnapshots());
-  if (route === '/api/snapshots' && req.method === 'POST') return sendJson(res, { name: takeSnapshot(url.searchParams.get('reason') || 'manual') });
+  if (route === '/api/snapshots' && req.method === 'GET') return sendJson(res, listSnapshots(p));
+  if (route === '/api/snapshots' && req.method === 'POST') return sendJson(res, { name: takeSnapshot(p, url.searchParams.get('reason') || 'manual') });
   const sm = route.match(/^\/api\/snapshots\/([^/]+)$/);
   if (sm) {
     const name = decodeURIComponent(sm[1]);
-    const f = path.join(SNAP_DIR, name);
-    if (!snapName(name) || !fs.existsSync(f)) { res.statusCode = 404; return res.end('no such snapshot'); }
+    const f = path.join(p.snapshots, name);
+    if (!snapName(name) || !fs.existsSync(f)) return fail(res, 404, 'no such snapshot');
     if (req.method === 'DELETE') { fs.unlinkSync(f); return sendJson(res, { ok: true }); }
     res.setHeader('Content-Type', 'application/json');
     if (url.searchParams.has('download')) res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
@@ -309,10 +513,19 @@ http.createServer((req, res) => {
   }
   const m = route.match(/^\/data\/level(\d+)\.csv$/);
   if (m || route === '/data/main.csv') {
-    const f = m ? levelFile(Number(m[1]) - 1) : levelFile(0);
+    const f = m ? p.level(Number(m[1]) - 1) : p.level(0);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     return res.end(fs.existsSync(f) ? fs.readFileSync(f) : '');
   }
+  fail(res, 404, 'not found');
+}
+
+http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  // Behind a proxy the app may be served under a path prefix (e.g. /proxy/3160/) that isn't stripped:
+  // API and data routes are matched from their own segment on, and static files fall back to their name alone.
+  const at = url.pathname.search(/\/(api|data)\//);
+  if (at >= 0) return void api(req, res, url, url.pathname.slice(at)).catch(e => fail(res, e instanceof SyntaxError ? 400 : 500, e.message));
   let p; try { p = decodeURIComponent(url.pathname); } catch { p = '/'; }
   // A prefix without a trailing slash (/proxy/3160) would make the page's relative links resolve one level up.
   if (!p.endsWith('/') && !path.extname(p)) { res.statusCode = 302; res.setHeader('Location', p + '/' + url.search); return res.end(); }
@@ -334,10 +547,3 @@ http.createServer((req, res) => {
     process.exit(1);
   })
   .listen(PORT, () => console.log(`track-things on http://localhost:${PORT}`));
-
-// Records saved before ids became integers are renumbered once, on startup.
-try {
-  const st = loadState();
-  const movedNotes = migrateMinutes(st);
-  if (movedNotes || allIds(st.rows).some(id => !isIntId(id))) saveState(st);
-} catch (e) { console.error('startup migration failed', e); }
