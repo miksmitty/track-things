@@ -20,6 +20,10 @@ A **project** has its own people and one or more **data sets**. A data set is on
 
 A **Lookup** column links one data set to another in the same project. Pick the data set it looks up in Configure; each cell then chooses a row (or several, with "Allow multiple") from that data set's main grid. Under **Show**, tick which of the other data set's fields the cell and its picker display, in the order you want them, for example Ref then Title; with none ticked it shows the first text column. The cell stores the other row's id, so renaming that row keeps the link. Sorting, filtering, search and rules all work on the shown name. If the other row is deleted the cell shows it as missing.
 
+**From a CSV file.** "New data set" can start from a CSV: choose the file, tick the columns to keep, rename them or change the guessed type (text, number, date, yes / no, choice, person), and optionally bring in the rows. In Configure, "Add columns from a CSV file" adds ticked columns to an existing data set; its rows then go in through Import / Export.
+
+**Configure.** Opens on the data set's columns: one row per column with its name, type and main setting. Choice lists and lookup settings open under their row. Drag the handle to reorder, or press Alt + ↑ / ↓ in a name box.
+
 ## Data
 
 Everything lives under `data/projects/` (set `DATA_DIR=/some/folder` to keep it elsewhere):

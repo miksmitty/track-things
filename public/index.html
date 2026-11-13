@@ -134,26 +134,68 @@
   td.ruled[data-tone=red] input { color:var(--red); font-weight:600; } td.ruled[data-tone=amber] input { color:var(--amber); font-weight:600; } td.ruled[data-tone=green] input { color:var(--green); font-weight:600; } td.ruled[data-tone=blue] input { color:var(--blue); font-weight:600; }
   /* Configure dialog: side navigation + one page at a time */
   dialog.config { width:min(980px,96vw); padding:0; overflow:hidden; }
-  dialog.config form { display:flex; flex-direction:column; height:min(78vh,760px); }
+  dialog.config form { display:flex; flex-direction:column; height:min(86vh,820px); }
   .cfghead { padding:20px 26px 14px; border-bottom:1px solid var(--line); }
   .cfgbody { flex:1; display:flex; min-height:0; }
   .cfgnav { width:220px; flex:none; border-right:1px solid var(--line); padding:12px 10px; display:flex; flex-direction:column; gap:2px; overflow:auto; background:var(--bg2); }
   .cfgnav .navitem { flex-direction:column; align-items:flex-start; gap:1px; padding:8px 12px; }
   .cfgnav .navitem small { font-size:11px; color:var(--faint); font-weight:500; }
   .cfgnav .navitem.active small { color:var(--accent-ink); opacity:.8; }
-  .cfgnav .addlvl { margin-top:auto; color:var(--accent-ink); font-size:12.5px; border:1px dashed var(--line-strong); justify-content:center; align-items:center; }
+  .cfgnav .navlabel { padding:12px 12px 4px; }
+  .cfgnav .navlabel:first-child { padding-top:4px; }
+  .cfgnav .addlvl { margin-top:4px; color:var(--accent-ink); font-size:12.5px; border:1px dashed var(--line-strong); justify-content:center; align-items:center; }
   .cfgpane { flex:1; min-width:0; overflow:auto; padding:6px 26px 22px; }
   .cfgpane h3:first-child { margin-top:14px; }
   .cfgpane .crow.opts { margin-bottom:10px; }
   .fieldlab { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:0 0 6px; }
-  .colhead { display:flex; gap:8px; padding:0 0 4px 22px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
-  .colhead span:first-child { flex:1; } .colhead span:last-child { width:284px; }
   .crow .ib { width:30px; height:30px; padding:0; border-color:transparent; background:none; color:var(--muted); font-size:14px; }
   .crow .ib:hover { background:var(--hover); color:var(--text); border-color:transparent; }
   .crow .ib.x:hover { background:var(--red-soft); color:var(--red); }
   .crow .ib:disabled { visibility:hidden; }
   .cfgpane .crow:not(.opts) > select { width:170px; flex:none; }
   .cfgpane .crow .grip { width:14px; font-size:11px; font-weight:700; }
+  /* level page: record name beside the heading, then one compact row per column */
+  .lvlhead { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .lvlhead h3 { margin-bottom:10px; }
+  .recname { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+  .recname input { width:190px; font:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:var(--text); outline:none; }
+  .recname input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .colbar { display:flex; align-items:baseline; gap:10px; }
+  .colbar .colcount { font-size:12px; color:var(--faint); }
+  .cols { display:flex; flex-direction:column; gap:4px; }
+  .colitem { position:relative; border-radius:10px; }
+  .colitem.dragging { opacity:.35; }
+  .colitem.dropbefore::before, .colitem.dropafter::after { content:""; position:absolute; left:20px; right:0; height:2px; border-radius:2px; background:var(--accent); }
+  .colitem.dropbefore::before { top:-3px; } .colitem.dropafter::after { bottom:-3px; }
+  .colrow { display:flex; align-items:center; gap:8px; }
+  .colrow .grip { width:14px; flex:none; text-align:center; color:var(--faint); font-size:12px; letter-spacing:-3px; cursor:grab; user-select:none; }
+  .colrow .grip:hover { color:var(--accent-ink); }
+  .colrow input, .colrow select, .coldet select { font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; transition:.15s; }
+  .colrow input:focus, .colrow select:focus, .coldet select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .colrow > input { flex:0 1 210px; min-width:110px; }
+  .colrow > select { width:146px; flex:none; }
+  .colmid { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+  .colmid select { min-width:0; max-width:100%; }
+  .colmid .dim { font-size:12px; color:var(--faint); white-space:nowrap; }
+  .colrow .ib { width:28px; height:28px; flex:none; padding:0; border-color:transparent; background:none; color:var(--muted); font-size:13px; }
+  .colrow .ib:hover { background:var(--hover); color:var(--text); border-color:transparent; }
+  .colrow .ib.x:hover { background:var(--red-soft); color:var(--red); }
+  .colrow .ib:disabled { visibility:hidden; }
+  .pillsum { display:inline-flex; align-items:center; justify-content:flex-start; gap:5px; max-width:100%; min-width:0; overflow:hidden; padding:5px 9px; border:1px dashed var(--line-strong); border-radius:9px; background:transparent; font:inherit; font-size:12.5px; font-weight:500; color:var(--muted); white-space:nowrap; }
+  .pillsum:hover, .pillsum.open { border-style:solid; border-color:var(--accent); color:var(--accent-ink); }
+  .pillsum .prev { flex:none; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; background:var(--gray-soft); color:var(--gray); }
+  .pillsum .in { display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; }
+  .pillsum .txt { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .pillsum .more { flex:none; }
+  .pillsum .chev { flex:none; font-size:10px; color:var(--faint); margin-left:auto; padding-left:2px; }
+  .coldet { margin:4px 0 8px 22px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); }
+  .coldet .optlist { padding:0; margin:0; }
+  .coldet .optrow input[type=text], .coldet select { background:var(--panel-solid); }
+  .coldet .detrow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); }
+  .coldet .detrow + .detrow { margin-top:10px; }
+  .coldet .detrow > .lab { width:118px; flex:none; }
+  .coldet .detrow label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .colactions { display:flex; gap:6px; margin-top:8px; }
   .cfgfoot { margin:0; padding:12px 26px; border-top:1px solid var(--line); background:var(--head); }
   details.optwrap, details.ruleswrap { margin:-2px 0 12px 22px; }
   details.ruleswrap { margin:18px 0 0; }
@@ -1097,7 +1139,7 @@ function makeGrid(level, rows, ui, opts) {
       drawList();
       const foot = el('div', { className: 'mbtns' });
       if (current) foot.append(el('button', { type: 'button', className: 'ghost', textContent: 'Avatar…', onclick: () => { const a = td.querySelector('.av'); closeMenu(); openAvatarMenu(a || td, current); } }));
-      foot.append(el('button', { type: 'button', className: 'ghost', textContent: 'Manage people', onclick: () => { closeMenu(); openConfig(); } }));
+      foot.append(el('button', { type: 'button', className: 'ghost', textContent: 'Manage people', onclick: () => { closeMenu(); openConfig('people'); } }));
       m.append(q, list, foot);
       td.classList.add('editing');
       const obs = new MutationObserver(() => { if (!document.body.contains(m)) { td.classList.remove('editing'); obs.disconnect(); } });
@@ -1509,23 +1551,20 @@ const dlg = document.getElementById('dlg');
 document.getElementById('cfgBtn').onclick = openConfig;
 document.getElementById('newBtn').onclick = () => window.addMainRow && window.addMainRow();
 
-function openConfig() {
+function openConfig(start) {
   const draft = JSON.parse(JSON.stringify(state.config));
   const form = el('form', { method: 'dialog' });
   const titleIn = el('input', { value: draft.title || '' });
-  const header = el('div', { className: 'cfghead' }, el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Pick a section on the left. Nothing is saved until you press Save.' }));
+  const header = el('div', { className: 'cfghead' }, el('h2', { textContent: 'Configure' }), el('p', { className: 'sub', textContent: 'Columns and rules for this data set, then project-wide settings. Nothing is saved until you press Save.' }));
   const projIn = el('input', { value: state.projectName || '' });
   const leave = fn => () => { dlg.close(); fn(); };
-  const generalPage = () => [
-    el('h3', { textContent: 'Project name' }), el('div', { className: 'crow' }, projIn),
-    el('p', { className: 'sub', textContent: 'Shown in the sidebar. People are shared by every data set in the project.' }),
-    el('h3', { textContent: 'Data set name' }), el('div', { className: 'crow' }, titleIn),
-    el('p', { className: 'sub', textContent: 'Shown at the top of the grid and in the browser tab.' }),
-    el('h3', { textContent: 'Remove' }),
-    el('div', { className: 'dangerrow' },
-      el('button', { type: 'button', textContent: 'Delete this data set…', onclick: leave(() => TT.deleteSet()) }),
-      el('button', { type: 'button', textContent: 'Delete the whole project…', onclick: leave(() => TT.deleteProject()) })),
-    el('p', { className: 'sub', style: 'margin-top:8px', textContent: 'Deleted folders are moved to data/trash on this computer, not erased.' })];
+  const settingsPage = (heading, input, hint, removeLabel, remove) => [
+    el('h3', { textContent: heading }), el('label', { className: 'fieldlab', textContent: 'Name' }), el('div', { className: 'crow' }, input),
+    el('p', { className: 'sub', textContent: hint }),
+    el('h3', { textContent: 'Remove' }), el('div', { className: 'dangerrow' }, el('button', { type: 'button', textContent: removeLabel, onclick: leave(remove) })),
+    el('p', { className: 'sub', style: 'margin-top:8px', textContent: 'Its folder is moved to data/trash on this computer, not erased.' })];
+  const datasetPage = () => settingsPage('Data set', titleIn, 'Shown in the sidebar, at the top of the grid and in the browser tab.', 'Delete this data set…', () => TT.deleteSet());
+  const projectPage = () => settingsPage('Project', projIn, 'Shown in the project switcher. People are shared by every data set in the project.', 'Delete the whole project…', () => TT.deleteProject());
 
   // People: every name typed into an owner / person column, with the avatar colour and initials to show for it.
   // Names are free text in the grid; this list only controls how each one looks (and lets you rename one everywhere).
@@ -1556,103 +1595,170 @@ function openConfig() {
   drawPeople();
   const peoplePage = () => [el('h3', { textContent: 'People' }), el('p', { className: 'sub', style: 'margin-bottom:10px', textContent: 'Everyone who can be picked in a Person column. Set the avatar colour and initials for each, or rename someone everywhere.' }), pplBox];
 
+  // Columns of one level. One compact row per column: drag handle, name, type, and the type's main setting inline.
+  // Choice lists and lookup settings open beneath their row on demand, so a long level still fits on one screen.
   const section = (heading, list, titleInput) => {
-    const box = el('div');
+    const box = el('div', { className: 'cols' });
+    const count = el('span', { className: 'colcount' });
+    const small = t => el('span', { className: 'dim', textContent: t });
+    let dragFrom = -1;
     const draw = () => {
       box.replaceChildren();
-      if (list.length) box.append(el('div', { className: 'colhead' }, el('span', { textContent: 'Column' }), el('span', { textContent: 'Type' })));
+      count.textContent = list.length + (list.length === 1 ? ' column' : ' columns');
       list.forEach((c, i) => {
+        suggestBehaviour(c, list);
+        const item = el('div', { className: 'colitem' });
+        // drag the handle to reorder; the arrows that appear on hover do the same from the keyboard
+        const grip = el('span', { className: 'grip', textContent: '⋮⋮', onmousedown: () => (item.draggable = true), onmouseup: () => (item.draggable = false) });
+        grip.dataset.tip = 'Drag to reorder\n(or Alt + ↑ / ↓ while in the name box)';
+        item.ondragstart = e => { dragFrom = i; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); };
+        item.ondragend = () => { dragFrom = -1; draw(); };
+        item.ondragover = e => {
+          if (dragFrom < 0 || dragFrom === i) return;
+          e.preventDefault();
+          const r = item.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+          item.classList.toggle('dropafter', after); item.classList.toggle('dropbefore', !after);
+        };
+        item.ondragleave = () => item.classList.remove('dropafter', 'dropbefore');
+        item.ondrop = e => {
+          e.preventDefault();
+          if (dragFrom < 0 || dragFrom === i) return;
+          const after = item.classList.contains('dropafter');
+          const [moved] = list.splice(dragFrom, 1);
+          list.splice(i - (dragFrom < i ? 1 : 0) + (after ? 1 : 0), 0, moved);
+          dragFrom = -1; draw();
+        };
+
         const name = el('input', { value: c.label, placeholder: 'Column name' });
         name.oninput = () => (c.label = name.value);
+        name.onkeydown = e => {   // Alt + arrow moves the column and keeps the cursor in it
+          const to = e.altKey && e.key === 'ArrowUp' ? i - 1 : e.altKey && e.key === 'ArrowDown' ? i + 1 : -1;
+          if (to < 0 || to >= list.length) return;
+          e.preventDefault();
+          [list[to], list[i]] = [list[i], list[to]];
+          draw();
+          box.querySelectorAll('.colrow > input')[to]?.focus();
+        };
         const type = el('select');
         TYPES.forEach(t => type.append(el('option', { value: t, textContent: TYPE_LABELS[t], selected: t === c.type })));
-        type.onchange = () => { c.type = type.value; draw(); };
-        const up = el('button', { type: 'button', className: 'ib', textContent: '↑', title: 'Move up', disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } });
-        const down = el('button', { type: 'button', className: 'ib', textContent: '↓', title: 'Move down', disabled: i === list.length - 1, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); } });
-        const del = el('button', { type: 'button', className: 'ib x', textContent: '✕', title: 'Remove column', onclick: () => { list.splice(i, 1); draw(); } });
-        up.dataset.tip = 'Move up'; down.dataset.tip = 'Move down'; del.dataset.tip = 'Remove column';
-        box.append(el('div', { className: 'crow' }, el('span', { className: 'grip', textContent: i + 1 }), name, type, up, down, del));
-        suggestBehaviour(c, list);
-        const setting = (...kids) => box.append(el('div', { className: 'crow opts' }, ...kids));
-        const small = t => el('span', { style: 'color:var(--muted);font-size:12.5px;white-space:nowrap', textContent: t });
+        type.onchange = () => { c.type = type.value; c._open = c.type === 'choice' || c.type === 'lookup'; draw(); };
+        const del = el('button', { type: 'button', className: 'ib x', textContent: '✕', onclick: () => { list.splice(i, 1); draw(); } });
+        del.dataset.tip = 'Remove column';
+
+        const mid = el('div', { className: 'colmid' });
+        const summary = (paint) => {   // a button that sums up the setting and opens its editor beneath the row
+          const b = el('button', { type: 'button', className: 'pillsum' + (c._open ? ' open' : ''), onclick: () => { c._open = !c._open; draw(); } });
+          const repaint = () => { const inner = el('span', { className: 'in' }); paint(inner, b); b.replaceChildren(inner, el('span', { className: 'chev', textContent: c._open ? '▴' : '▾' })); };
+          repaint();
+          mid.append(b);
+          return repaint;
+        };
+        let detail = null;
         if (c.type === 'text') {
           const look = el('select');
           [['plain', 'Plain text'], ['status', 'Status pill (coloured by value)']].forEach(([v, t]) => look.append(el('option', { value: v, textContent: t, selected: c.look === v })));
           look.onchange = () => (c.look = look.value);
-          setting(small('Show as'), look);
+          mid.append(small('Show as'), look);
         }
         if (c.type === 'date') {
           const fmtSel = el('select');
           Object.entries(DATE_FORMATS).forEach(([v, t]) => fmtSel.append(el('option', { value: v, textContent: t, selected: dateFormat(c) === v })));
           fmtSel.onchange = () => (c.format = fmtSel.value);
-          setting(small('Format'), fmtSel);
-        }
-        if (c.type === 'lookup') {
-          const others = TT.sets().filter(x => x.id !== TT.set);
-          const pick = el('select');
-          pick.append(el('option', { value: '', textContent: others.length ? 'Choose a data set…' : 'No other data sets yet' }));
-          others.forEach(x => pick.append(el('option', { value: x.id, textContent: x.name + ' (' + plural(x.rows, 'row') + ')' })));
-          if (c.set && !others.some(x => x.id === c.set)) pick.append(el('option', { value: c.set, textContent: c.set + ' (missing)' }));
-          pick.value = c.set || '';
-          // Which of the other data set's fields the cell and its picker show, in the order they are ticked.
-          const chips = el('div', { className: 'showchips' });
-          const drawChips = () => {
-            const t = TT.setInfo(c.set);
-            c.show = (c.show || []).filter(k => t && t.columns.some(x => x.key === k));
-            chips.replaceChildren();
-            if (!t) return chips.append(el('span', { className: 'hint', textContent: 'Choose a data set first.' }));
-            t.columns.forEach(x => {
-              const at = c.show.indexOf(x.key);
-              const b = el('button', { type: 'button', className: at >= 0 ? 'on' : '', onclick: () => { at >= 0 ? c.show.splice(at, 1) : c.show.push(x.key); drawChips(); } });
-              if (at >= 0) b.append(el('i', { textContent: at + 1 }));
-              b.append(x.label);
-              chips.append(b);
-            });
-            const first = t.columns.find(x => x.type === 'text') || t.columns[0];
-            if (!c.show.length) chips.append(el('span', { className: 'hint', textContent: first ? 'None ticked: shows ' + first.label + '.' : 'That data set has no columns yet.' }));
-          };
-          pick.onchange = () => { c.set = pick.value; c.show = []; drawChips(); };
-          const multi = el('input', { type: 'checkbox', checked: !!c.multi });
-          multi.onchange = () => (c.multi = multi.checked);
-          setting(small('Looks up a row in'), pick, el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);white-space:nowrap' }, multi, 'Allow multiple'));
-          drawChips();
-          setting(small('Show'), chips);
-          if (!others.length) box.append(el('p', { className: 'sub', style: 'margin:-4px 0 10px 22px', textContent: 'Create another data set with “New data set” in the sidebar, then point this column at it.' }));
+          mid.append(small('Format'), fmtSel);
         }
         if (c.type === 'choice') {
           c.options = c.options || []; c.colors = c.colors || {};
-          const list = el('div', { className: 'optlist' });
-          const drawOpts = () => {
-            list.replaceChildren();
-            c.options.forEach((o, k) => {
-              const name = el('input', { type: 'text', value: o, placeholder: 'Choice' });
-              const prev = el('span', { className: 'prev', textContent: o || 'Choice' });
-              const paint = () => { prev.dataset.tone = optionTone(c, c.options[k]); prev.textContent = c.options[k] || 'Choice'; sw.paint(); };
-              const sw = swatches(() => c.colors[c.options[k]], t => { if (!c.options[k]) return; if (t) c.colors[c.options[k]] = t; else delete c.colors[c.options[k]]; paint(); }, { none: 'Automatic colour' });
-              name.oninput = () => { const old = c.options[k]; c.options[k] = name.value.trim(); if (c.colors[old] && old !== c.options[k]) { c.colors[c.options[k]] = c.colors[old]; delete c.colors[old]; } paint(); };
-              const del = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this choice', onclick: () => { delete c.colors[c.options[k]]; c.options.splice(k, 1); drawOpts(); } });
-              paint();
-              list.append(el('div', { className: 'optrow' }, name, prev, sw, del));
-            });
-            const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add choice', onclick: () => { c.options.push(''); drawOpts(); list.querySelector('.optrow:last-of-type input')?.focus(); } });
-            const multi = el('input', { type: 'checkbox', checked: !!c.multi });
-            multi.onchange = () => (c.multi = multi.checked);
-            list.append(el('div', { className: 'optrow' }, add, el('span', { style: 'flex:1' }), el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)' }, multi, 'Allow multiple')));
-          };
-          drawOpts();
-          const sum = el('summary');
-          const wrap = el('details', { className: 'optwrap', open: c.options.length <= 4 }, sum, list);
-          const paintSum = () => (sum.textContent = (c.options.length || 'No') + ' choice' + (c.options.length === 1 ? '' : 's') + (c.multi ? ' · multiple allowed' : ''));
-          paintSum();
-          wrap.addEventListener('input', paintSum); wrap.addEventListener('click', () => setTimeout(paintSum));
-          box.append(wrap);
+          const paintSum = summary((b, btn) => {
+            const opts = c.options.filter(Boolean);
+            opts.slice(0, 4).forEach(o => { const p = el('span', { className: 'prev', textContent: o }); p.dataset.tone = optionTone(c, o); b.append(p); });
+            const more = (opts.length > 4 ? '+' + (opts.length - 4) : '') + (opts.length ? '' : 'Add choices') + (c.multi ? ' · multiple' : '');
+            if (more) b.append(el('span', { className: 'more', textContent: more }));
+            btn.dataset.tip = opts.length ? opts.join(', ') + (c.multi ? '\n(multiple allowed)' : '') : 'No choices yet';
+          });
+          if (c._open) {
+            const olist = el('div', { className: 'optlist' });
+            const drawOpts = () => {
+              olist.replaceChildren();
+              c.options.forEach((o, k) => {
+                const oname = el('input', { type: 'text', value: o, placeholder: 'Choice' });
+                const prev = el('span', { className: 'prev', textContent: o || 'Choice' });
+                const paint = () => { prev.dataset.tone = optionTone(c, c.options[k]); prev.textContent = c.options[k] || 'Choice'; sw.paint(); paintSum(); };
+                const sw = swatches(() => c.colors[c.options[k]], t => { if (!c.options[k]) return; if (t) c.colors[c.options[k]] = t; else delete c.colors[c.options[k]]; paint(); }, { none: 'Automatic colour' });
+                oname.oninput = () => { const old = c.options[k]; c.options[k] = oname.value.trim(); if (c.colors[old] && old !== c.options[k]) { c.colors[c.options[k]] = c.colors[old]; delete c.colors[old]; } paint(); };
+                oname.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); c.options.splice(k + 1, 0, ''); drawOpts(); olist.querySelectorAll('.optrow input[type=text]')[k + 1]?.focus(); } };
+                const odel = el('button', { type: 'button', className: 'x', textContent: '✕', title: 'Remove this choice', onclick: () => { delete c.colors[c.options[k]]; c.options.splice(k, 1); drawOpts(); paintSum(); } });
+                paint();
+                olist.append(el('div', { className: 'optrow' }, oname, prev, sw, odel));
+              });
+              const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add choice', onclick: () => { c.options.push(''); drawOpts(); [...olist.querySelectorAll('.optrow input[type=text]')].pop()?.focus(); } });
+              const multi = el('input', { type: 'checkbox', checked: !!c.multi });
+              multi.onchange = () => { c.multi = multi.checked; paintSum(); };
+              olist.append(el('div', { className: 'optrow' }, add, el('span', { style: 'flex:1' }), el('label', { className: 'check', style: 'display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)' }, multi, 'Allow multiple')));
+            };
+            drawOpts();
+            detail = el('div', { className: 'coldet' }, olist);
+          }
         }
+        if (c.type === 'lookup') {
+          const others = TT.sets().filter(x => x.id !== TT.set);
+          const paintSum = summary((b, btn) => {
+            const t = TT.setInfo(c.set);
+            const shownCols = t ? (c.show || []).map(k => t.columns.find(x => x.key === k)).filter(Boolean).map(x => x.label) : [];
+            const text = !t ? (c.set ? 'Data set missing' : others.length ? 'Choose a data set' : 'No other data sets yet')
+              : '→ ' + t.name + (shownCols.length ? ' · shows ' + shownCols.join(', ') : '') + (c.multi ? ' · multiple' : '');
+            b.append(el('span', { className: 'txt', textContent: text }));
+            btn.dataset.tip = text;
+          });
+          if (c._open) {
+            const pick = el('select');
+            pick.append(el('option', { value: '', textContent: others.length ? 'Choose a data set…' : 'No other data sets yet' }));
+            others.forEach(x => pick.append(el('option', { value: x.id, textContent: x.name + ' (' + plural(x.rows, 'row') + ')' })));
+            if (c.set && !others.some(x => x.id === c.set)) pick.append(el('option', { value: c.set, textContent: c.set + ' (missing)' }));
+            pick.value = c.set || '';
+            // Which of the other data set's fields the cell and its picker show, in the order they are ticked.
+            const chips = el('div', { className: 'showchips' });
+            const drawChips = () => {
+              const t = TT.setInfo(c.set);
+              c.show = (c.show || []).filter(k => t && t.columns.some(x => x.key === k));
+              chips.replaceChildren();
+              if (!t) return chips.append(el('span', { className: 'hint', textContent: 'Choose a data set first.' }));
+              t.columns.forEach(x => {
+                const at = c.show.indexOf(x.key);
+                const b = el('button', { type: 'button', className: at >= 0 ? 'on' : '', onclick: () => { at >= 0 ? c.show.splice(at, 1) : c.show.push(x.key); drawChips(); paintSum(); } });
+                if (at >= 0) b.append(el('i', { textContent: at + 1 }));
+                b.append(x.label);
+                chips.append(b);
+              });
+              const first = t.columns.find(x => x.type === 'text') || t.columns[0];
+              if (!c.show.length) chips.append(el('span', { className: 'hint', textContent: first ? 'None ticked: shows ' + first.label + '.' : 'That data set has no columns yet.' }));
+            };
+            pick.onchange = () => { c.set = pick.value; c.show = []; drawChips(); paintSum(); };
+            const multi = el('input', { type: 'checkbox', checked: !!c.multi });
+            multi.onchange = () => { c.multi = multi.checked; paintSum(); };
+            drawChips();
+            detail = el('div', { className: 'coldet' },
+              el('div', { className: 'detrow' }, el('span', { className: 'lab', textContent: 'Looks up a row in' }), pick, el('label', {}, multi, 'Allow multiple')),
+              el('div', { className: 'detrow' }, el('span', { className: 'lab', textContent: 'Show' }), chips));
+            if (!others.length) detail.append(el('p', { className: 'sub', style: 'margin-top:10px', textContent: 'Create another data set with “New data set” in the sidebar, then point this column at it.' }));
+          }
+        }
+        item.append(el('div', { className: 'colrow' }, grip, name, type, mid, del));
+        if (detail) item.append(detail);
+        box.append(item);
       });
-      box.append(el('button', { type: 'button', className: 'ghost', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); } }));
     };
     draw();
-    return [el('h3', { textContent: heading }), ...(titleInput ? [el('label', { className: 'fieldlab', textContent: 'What one record is called' }), el('div', { className: 'crow' }, titleInput)] : []),
-      el('h3', { textContent: 'Columns' }), box];
+    const add = el('button', { type: 'button', className: 'ghost', textContent: '+ Add column', onclick: () => { list.push({ key: '', label: '', type: 'text' }); draw(); [...box.querySelectorAll('.colrow > input')].pop()?.focus(); } });
+    const fromCsv = el('button', { type: 'button', className: 'ghost', textContent: 'Add columns from a CSV file…', onclick: async () => {
+      const cols = await TT.pickCsvColumns(list.map(c => c.key).filter(Boolean));
+      if (!cols) return;
+      cols.forEach(c => list.push({ ...c, key: '' }));   // keys are assigned on save, like any new column
+      draw();
+    } });
+    return [
+      el('div', { className: 'lvlhead' }, el('h3', { textContent: heading }), ...(titleInput ? [el('label', { className: 'recname' }, 'One record is called', titleInput)] : [])),
+      el('div', { className: 'colbar' }, el('h3', { textContent: 'Columns', style: 'margin-top:8px' }), count),
+      box, el('div', { className: 'colactions' }, add, fromCsv)];
   };
 
   // Rules editor for one level: each rule is "when all of these hold → do this".
@@ -1732,29 +1838,38 @@ function openConfig() {
   }
 
   const titleInputs = [];
-  // The dialog is split into pages: General, People, then one per level. Level pages are all built up front so
-  // their title inputs exist when saving, but only the chosen one is shown.
+  // Pages, grouped in the side list: the data set (one page per level, then its settings) and the project
+  // (people, settings). Level pages are all built up front so their inputs exist when saving; one is shown at a time.
   const nav = el('div', { className: 'cfgnav' });
   const pane = el('div', { className: 'cfgpane' });
   const levelPages = [];
-  let current = 'general';
-  const navBtn = (id, label, sub) => el('button', { type: 'button', className: 'navitem' + (id === current ? ' active' : ''), onclick: () => { current = id; show(); } },
-    el('span', { textContent: label }), ...(sub ? [el('small', { textContent: sub })] : []));
+  const levelName = (lvl, i) => (titleInputs[i] && titleInputs[i].value.trim()) || lvl.title || (i ? 'Level ' + (i + 1) : 'Main records');
+  let current = typeof start === 'string' ? start : 'level0';
+  const navBtn = (id, label, sub) => {
+    const b = el('button', { type: 'button', className: 'navitem' + (id === current ? ' active' : ''), onclick: () => { current = id; show(); } },
+      el('span', { textContent: label }), ...(sub ? [el('small', { textContent: sub })] : []));
+    b.dataset.id = id;
+    return b;
+  };
   const show = () => {
-    nav.replaceChildren(navBtn('general', 'General'), navBtn('people', 'People', draft.people.filter(p => p.name.trim()).length + ' people'));
-    draft.levels.forEach((lvl, i) => nav.append(navBtn('level' + i, (titleInputs[i] && titleInputs[i].value.trim()) || lvl.title || (i ? 'Level ' + (i + 1) : 'Main records'), (i ? 'Sub records · ' : 'Main records · ') + lvl.columns.length + ' columns')));
+    nav.replaceChildren(el('div', { className: 'navlabel', textContent: 'Data set' }));
+    draft.levels.forEach((lvl, i) => nav.append(navBtn('level' + i, levelName(lvl, i), (i ? 'Sub records · ' : 'Main records · ') + plural(lvl.columns.length, 'column'))));
     nav.append(el('button', { type: 'button', className: 'navitem addlvl', textContent: '+ Add a sub record level', onclick: () => {
       draft.levels.push({ title: '', columns: [{ key: '', label: 'Name', type: 'text' }] }); drawLevels(); current = 'level' + (draft.levels.length - 1); show();
     } }));
-    pane.replaceChildren(...(current === 'general' ? generalPage() : current === 'people' ? peoplePage() : levelPages[Number(current.slice(5))] || []));
+    nav.append(navBtn('dataset', 'Settings', 'Name · delete'),
+      el('div', { className: 'navlabel', textContent: 'Project' }),
+      navBtn('people', 'People', plural(draft.people.filter(p => p.name.trim()).length, 'person').replace(/persons$/, 'people')),
+      navBtn('project', 'Settings', 'Name · delete'));
+    pane.replaceChildren(...(current === 'dataset' ? datasetPage() : current === 'project' ? projectPage() : current === 'people' ? peoplePage() : levelPages[Number(current.slice(5))] || levelPages[0] || []));
     pane.scrollTop = 0;
   };
   const drawLevels = () => {
     levelPages.length = 0;
     titleInputs.length = 0;
     draft.levels.forEach((lvl, i) => {
-      const t = el('input', { value: lvl.title || '', placeholder: i ? 'Sub record name (e.g. Items)' : 'Main record name' });
-      t.oninput = () => { const b = nav.querySelectorAll('.navitem')[i + 2]; if (b) b.firstChild.textContent = t.value.trim() || (i ? 'Level ' + (i + 1) : 'Main records'); };
+      const t = el('input', { value: lvl.title || '', placeholder: i ? 'e.g. Item' : 'e.g. Task' });
+      t.oninput = () => { const b = nav.querySelector('[data-id="level' + i + '"]'); if (b) b.firstChild.textContent = levelName(lvl, i); };
       titleInputs.push(t);
       const heading = i === 0 ? 'Main records' : 'Level ' + (i + 1) + ' sub records' + (i > 1 ? ' (nested inside level ' + i + ')' : '');
       const page = [...section(heading, lvl.columns, t)];
@@ -1779,7 +1894,7 @@ function openConfig() {
       const used = new Set();
       return list.filter(c => c.label.trim()).map(c => {
         let key = c.key || c.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'col';
-        while (used.has(key) && !c.key) key += '_';
+        while (!c.key && (used.has(key) || ['id', 'parent_id', 'children'].includes(key))) key += '_';   // 'id' and friends belong to the record itself
         used.add(key);
         const out = { key, label: c.label.trim(), type: c.type };
         if (c.type === 'text') out.look = c.look || 'plain';

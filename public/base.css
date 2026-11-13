@@ -206,3 +206,20 @@
   .navlist .navtools { margin:1px 0 6px 20px; padding-left:8px; border-left:1px solid var(--line-strong); }
   .navlist .navtools .navitem { padding:6px 10px; gap:9px; font-size:13px; }
   .navlist .navtools .navitem svg { width:15px; height:15px; }
+
+  /* ---------- CSV column picker (New data set, Configure → add columns from CSV) ---------- */
+  dialog.wide { width:min(820px,96vw); }
+  .csvpick { margin-top:10px; }
+  .csvfile { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .csvinfo { font-size:12.5px; color:var(--muted); }
+  .csvcols { margin-top:12px; max-height:min(44vh,380px); overflow:auto; border:1px solid var(--line); border-radius:12px; }
+  .csvcols:empty { display:none; }
+  .csvrow { display:grid; grid-template-columns:22px minmax(140px,1.1fr) 120px minmax(0,1.4fr); gap:10px; align-items:center; padding:5px 12px; border-bottom:1px solid var(--line); }
+  .csvrow:last-child { border-bottom:none; }
+  .csvrow.head { position:sticky; top:0; z-index:1; background:var(--panel-solid); font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); padding-top:8px; padding-bottom:8px; }
+  .csvrow input[type=text], .csvrow select { font:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:9px; background:var(--bg2); color:inherit; outline:none; min-width:0; width:100%; }
+  .csvrow input[type=text]:focus, .csvrow select:focus { border-color:var(--accent); }
+  .csvrow .sample { font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .csvrow.off > :not(input[type=checkbox]) { opacity:.4; }
+  .csvopt { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--muted); }
+  .csvopt[hidden] { display:none; }
