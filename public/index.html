@@ -40,9 +40,9 @@
   .rs::after { content:""; position:absolute; right:3px; top:25%; bottom:25%; width:1px; background:var(--line-strong); }
   .rs:hover::after, body.resizing .rs::after { background:var(--accent); width:2px; }
   body.resizing { cursor:col-resize; user-select:none; }
-  th.tog, td.tog { width:50px; text-align:left; padding-left:4px; }
+  th.tog, td.tog { width:40px; text-align:left; padding-left:2px; }
   th.act, td.act { width:30px; text-align:center; }
-  th.sel, td.sel { width:30px; text-align:center; }
+  th.sel, td.sel { width:26px; text-align:center; }
   th.sel { background:var(--head); position:sticky; top:0; z-index:2; }
   tbody > tr.selected > td:not(.subcell) { background:var(--accent-soft); }
   /* row multi-select bar */
@@ -326,15 +326,15 @@
   .peek .ph small { font-weight:500; color:var(--muted); letter-spacing:0; text-transform:none; margin-left:auto; }
   .peek .rt-preview { padding:10px 14px 14px; max-height:260px; overflow:hidden; font-size:13px; min-height:0; position:relative; }
   .peek .rt-preview.more::after { content:""; position:absolute; left:0; right:0; bottom:0; height:48px; background:linear-gradient(transparent, var(--panel-solid)); }
-  .toggle { cursor:pointer; color:var(--muted); border:none; background:none; font:inherit; min-height:22px; user-select:none; display:inline-flex; align-items:center; gap:4px; padding:2px 4px; border-radius:8px; font-size:11px; transition:.15s; }
+  .toggle { cursor:pointer; color:var(--muted); border:none; background:none; font:inherit; min-height:22px; user-select:none; display:inline-flex; align-items:center; gap:2px; padding:2px; border-radius:8px; font-size:11px; transition:.15s; }
   .toggle svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s cubic-bezier(.2,.8,.2,1); }
   .toggle.open svg { transform:rotate(90deg); }
   .toggle:hover { background:var(--accent-soft); color:var(--accent-ink); }
   .toggle.none { color:var(--faint); opacity:.55; }
-  .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 7px; font-weight:700; font-size:10.5px; }
-  td.subcell { background:var(--sub); padding:6px 10px 8px 40px; position:relative; }
-  td.subcell td.subcell { padding-left:30px; }
-  td.subcell::before { left:16px; }
+  .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 5px; font-weight:700; font-size:10px; }
+  td.subcell { background:var(--sub); padding:6px 10px 8px 32px; position:relative; }
+  td.subcell td.subcell { padding-left:26px; }
+  td.subcell::before { left:13px; }
   /* compact nested grids */
   td.subcell .bar { padding:3px 6px; gap:6px; }
   td.subcell .bar button { padding:3px 8px; font-size:12px; }
@@ -854,7 +854,7 @@ function makeGrid(level, rows, ui, opts) {
   const thead = el('thead'), tbody = el('tbody');
   const tfoot = el('tfoot');
   table.append(colgroup, thead, tbody, tfoot);
-  const TOG_W = 50, ACT_W = 30, SEL_W = 30;
+  const TOG_W = 40, ACT_W = 30, SEL_W = 26;   // expand toggle, row delete, tick box: kept narrow so data starts near the left edge
   const fixedCols = (opts.subGrid ? TOG_W : 0) + SEL_W + ACT_W;
   const span = cols.length + (opts.subGrid ? 3 : 2);
   ui.sel = ui.sel || new Set();   // ids of rows ticked for a bulk action
