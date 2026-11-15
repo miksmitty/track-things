@@ -406,6 +406,6 @@
     projects: () => projects,
     sets: () => sets,
     setInfo: id => sets.find(s => s.id === id) || null,
-    api, href, ready, refresh, newProject, newSet, deleteProject, deleteSet, renameProject, lookupParts, lookupFind, pickCsvColumns,
+    api, href, ready, refresh, newProject, newSet, deleteProject, deleteSet, renameProject, lookupParts, lookupFind, pickCsvColumns, guessType,
   };
 })();
