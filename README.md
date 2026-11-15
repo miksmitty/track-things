@@ -22,6 +22,20 @@ A **Lookup** column links one data set to another in the same project. Pick the 
 
 **From a CSV file.** "New data set" can start from a CSV: choose the file, tick the columns to keep, rename them or change the guessed type (text, number, date, yes / no, choice, person), and optionally bring in the rows. In Configure, "Add columns from a CSV file" adds ticked columns to an existing data set. On the Import / Export page, any file column that matches no field can be set to **Create a new column** (or all of them at once); the columns are created, with a type guessed from the values, when the import is confirmed.
 
+**Moving around the grid.** It works like a spreadsheet. Click a cell to select it, then:
+
+- **Arrow keys** move one cell; with Ctrl or Cmd they jump to the edge of the grid. Home and End go to the first and last column, Page Up and Page Down move a screenful.
+- **Tab** and Shift + Tab move right and left, wrapping onto the next row. **Enter** and Shift + Enter move down and up. After tabbing along a row, Enter drops to the next row in the column you started in.
+- **Just type** to replace what is in the cell; Enter, Tab or an arrow key finishes the entry and moves on. **F2** or a double-click edits the existing text instead, with the arrows moving the caret. **Esc** cancels and puts the old value back.
+- **Delete** empties the cell; Backspace empties it and leaves it open for typing.
+- **Space** ticks a yes / no box and opens a dropdown, picker or notes. Typing a letter in a person or lookup cell opens its picker already searching; in a dropdown it jumps to the matching choice.
+
+- **Shift + arrows**, a Shift-click or a drag selects a block of cells; Ctrl or Cmd + A selects the whole grid. Delete empties the block and Esc lets go of it.
+- **Copy, cut and paste** (Ctrl or Cmd + C, X, V) work on the selected cell or block, and to and from a spreadsheet. A block pastes from the selected cell down and to the right; one value pasted onto a block fills it. A pasted value that does not fit its column (text in a number column, a choice that is not on the list) is left out and reported, and nothing is pasted past the edge of the grid.
+- **Undo and redo** (Ctrl or Cmd + Z, and Shift + Z or Ctrl + Y) step back and forward through changes to the rows: edits, pastes, fills, added and deleted rows. The active cell jumps to what changed. The history is kept until the page is reloaded or the columns are changed in Configure.
+
+Each nested sub-grid is moved around on its own. The square in the corner of the selected cell is still the fill handle: drag it down to copy the value.
+
 **Totals and cards.** A column's menu (the arrow in its heading) has a Total setting. Each total shows under the grid and as a card above it. **Count by value** makes a breakdown card titled with the column's name: one row per distinct value with a bar, how many rows have it and its share, for example Priority 1 and 2, plus a row for blanks. Click a row to filter the grid to that value. A counted Choice column shows a card with a stacked bar and one pill per choice.
 
 **Configure.** Opens on the data set's columns: one row per column with its name, type and main setting. Choice lists and lookup settings open under their row. Drag the handle to reorder, or press Alt + ↑ / ↓ in a name box.
