@@ -47,9 +47,8 @@
         },
         {
           "key": "kjkj",
-          "label": "kjkj",
-          "type": "number",
-          "agg": "sum"
+          "label": "Priority",
+          "type": "number"
         },
         {
           "key": "tags",
