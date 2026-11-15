@@ -40,9 +40,9 @@
   .rs::after { content:""; position:absolute; right:3px; top:25%; bottom:25%; width:1px; background:var(--line-strong); }
   .rs:hover::after, body.resizing .rs::after { background:var(--accent); width:2px; }
   body.resizing { cursor:col-resize; user-select:none; }
-  th.tog, td.tog { width:50px; text-align:left; padding-left:4px; }
+  th.tog, td.tog { width:40px; text-align:left; padding-left:2px; }
   th.act, td.act { width:30px; text-align:center; }
-  th.sel, td.sel { width:30px; text-align:center; }
+  th.sel, td.sel { width:26px; text-align:center; }
   th.sel { background:var(--head); position:sticky; top:0; z-index:2; }
   tbody > tr.selected > td:not(.subcell) { background:var(--accent-soft); }
   /* row multi-select bar */
@@ -57,6 +57,16 @@
   td.active::after { content:""; position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; background:var(--accent); border:1.5px solid var(--panel-solid); border-radius:2px; cursor:crosshair; z-index:3; }
   td.fillrange { box-shadow:inset 0 0 0 1.5px var(--accent); background:var(--accent-soft) !important; }
   body.filling, body.filling * { cursor:crosshair !important; user-select:none; }
+  /* spreadsheet-style cells: a selected cell holds the focus itself; its text box takes the pointer and the caret only while it is being edited */
+  td.cell { outline:none; scroll-margin:34px 12px 8px; }
+  td.cell[data-kind=text] { cursor:cell; }
+  td.cell input:not([type=checkbox]):not([type=date]) { pointer-events:none; }
+  td.cell.typing { cursor:auto; }
+  td.cell.typing input:not([type=checkbox]) { pointer-events:auto; }
+  /* a block of selected cells (Shift + arrows, Shift-click or a drag): tinted around the active cell; the dashes mark what was last copied */
+  td.cell.inrange:not(.active) { background:var(--accent-soft) !important; }
+  td.cell.active.inrange::after { display:none; }   /* the fill handle belongs to a single cell */
+  td.cell.copied { outline:1.5px dashed var(--accent); outline-offset:-2px; }
   tbody > tr { transition:background .12s; }
   tbody > tr:hover > td:not(.subcell) { background:var(--hover); }
   tr.done > td:not(.subcell) > input:not([type=checkbox]) { color:var(--faint); }
@@ -282,6 +292,27 @@
   .showchips .hint { font-size:12px; color:var(--faint); }
   td.lookup .pill.missing::before { content:"? "; color:var(--red); }
   td.lookup .unset { color:var(--faint); font-size:11.5px; font-style:italic; }
+  /* "Count by value" card: column name, then value / bar / count / share rows */
+  .kpis { align-items:start; }   /* a tall by-value card must not stretch the plain tiles beside it */
+  .kpi.pivot { display:block; grid-column:span 2; padding:13px 18px 11px; }
+  @media (max-width:520px) { .kpi.pivot { grid-column:auto; } }
+  .kpi.pivot .phead { display:flex; align-items:baseline; gap:10px; margin-bottom:7px; }
+  .kpi.pivot .pt { font-size:15px; font-weight:800; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kpi.pivot .ps { font-size:12px; color:var(--muted); margin-left:auto; white-space:nowrap; }
+  .kpi.pivot .prows { display:grid; grid-template-columns:fit-content(45%) 1fr max-content max-content; column-gap:10px; row-gap:1px; align-items:center; }
+  .kpi.pivot .prow { display:grid; grid-template-columns:subgrid; grid-column:1 / -1; align-items:center; padding:3px 6px; margin:0 -6px; border:none; border-radius:7px; background:none; font:inherit; color:inherit; text-align:left; }
+  .kpi.pivot button.prow { cursor:pointer; }
+  .kpi.pivot button.prow:hover { background:var(--hover); color:inherit; }
+  .kpi.pivot .pv { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kpi.pivot .pbar { height:8px; border-radius:999px; background:var(--gray-soft); overflow:hidden; }
+  .kpi.pivot .pbar i { display:block; height:100%; border-radius:999px; background:var(--kc,var(--accent)); }
+  .kpi.pivot .pc { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; text-align:right; min-width:2ch; }
+  .kpi.pivot .pp { font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; min-width:4ch; }
+  .kpi.pivot .prow.blank .pv { color:var(--faint); font-weight:500; font-style:italic; }
+  .kpi.pivot .prow.blank .pbar i { background:var(--line-strong); }
+  .kpi.pivot .prow.on { background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .kpi.pivot.filtering .prow:not(.on) { opacity:.5; }
+  .kpi.pivot .pmore { grid-column:1 / -1; font-size:12px; color:var(--faint); padding:3px 0 0; }
   .empty button.art { padding:0; border:none; cursor:pointer; transition:.15s; }
   .empty button.art:hover { box-shadow:var(--glow); transform:translateY(-2px); }
   .empty button.art:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
@@ -326,15 +357,15 @@
   .peek .ph small { font-weight:500; color:var(--muted); letter-spacing:0; text-transform:none; margin-left:auto; }
   .peek .rt-preview { padding:10px 14px 14px; max-height:260px; overflow:hidden; font-size:13px; min-height:0; position:relative; }
   .peek .rt-preview.more::after { content:""; position:absolute; left:0; right:0; bottom:0; height:48px; background:linear-gradient(transparent, var(--panel-solid)); }
-  .toggle { cursor:pointer; color:var(--muted); border:none; background:none; font:inherit; min-height:22px; user-select:none; display:inline-flex; align-items:center; gap:4px; padding:2px 4px; border-radius:8px; font-size:11px; transition:.15s; }
+  .toggle { cursor:pointer; color:var(--muted); border:none; background:none; font:inherit; min-height:22px; user-select:none; display:inline-flex; align-items:center; gap:2px; padding:2px; border-radius:8px; font-size:11px; transition:.15s; }
   .toggle svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s cubic-bezier(.2,.8,.2,1); }
   .toggle.open svg { transform:rotate(90deg); }
   .toggle:hover { background:var(--accent-soft); color:var(--accent-ink); }
   .toggle.none { color:var(--faint); opacity:.55; }
-  .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 7px; font-weight:700; font-size:10.5px; }
-  td.subcell { background:var(--sub); padding:6px 10px 8px 40px; position:relative; }
-  td.subcell td.subcell { padding-left:30px; }
-  td.subcell::before { left:16px; }
+  .toggle .n { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border-radius:9px; padding:1px 5px; font-weight:700; font-size:10px; }
+  td.subcell { background:var(--sub); padding:6px 10px 8px 32px; position:relative; }
+  td.subcell td.subcell { padding-left:26px; }
+  td.subcell::before { left:13px; }
   /* compact nested grids */
   td.subcell .bar { padding:3px 6px; gap:6px; }
   td.subcell .bar button { padding:3px 8px; font-size:12px; }
@@ -523,7 +554,58 @@ document.addEventListener('click', () => { hideTip(); hidePeek(); });
 addEventListener('scroll', () => { hideTip(); hidePeek(); }, true);
 
 // ---- save with indicator ----
+// ---- undo ----
+// Every save that changed the rows keeps the rows as they were before it, so any edit, paste, fill, added or deleted row can be
+// stepped back (Ctrl / Cmd + Z) and forward again. The history lasts until the page is reloaded or Configure changes the columns.
+const undo = { base: '[]', back: [], fwd: [] };
+const undoReset = () => { undo.base = JSON.stringify(state.rows); undo.back = []; undo.fwd = []; };
+function undoNote() {
+  const now = JSON.stringify(state.rows);
+  if (now === undo.base) return;
+  undo.back.push(undo.base); undo.fwd = []; undo.base = now;
+  while (undo.back.length > 100 || (undo.back.length > 1 && undo.back.reduce((n, x) => n + x.length, 0) > 2e7)) undo.back.shift();   // bounded in steps and in memory
+}
+// Where two versions of the rows first differ: a changed cell, or a row that only the second one has.
+function firstChange(a, b) {
+  const flat = (rows, out = new Map()) => { rows.forEach(r => { out.set(String(r.id), r); flat(r.children || [], out); }); return out; };
+  const A = flat(a), same = (x, y) => JSON.stringify(x ?? '') === JSON.stringify(y ?? '');
+  let added = null;
+  for (const [rid, r] of flat(b)) {
+    const o = A.get(rid);
+    if (!o) { added = added || { rid }; continue; }
+    const key = Object.keys({ ...o, ...r }).find(k => k !== 'id' && k !== 'children' && !same(o[k], r[k]));
+    if (key) return { rid, key };
+  }
+  return added;
+}
+function undoStep(redo) {
+  const src = redo ? undo.fwd : undo.back, dst = redo ? undo.back : undo.fwd;
+  if (!src.length) return toast(redo ? 'Nothing to redo.' : 'Nothing to undo.');
+  const was = state.rows, sel = nav.td && { rid: nav.rid, key: nav.key }, range = nav.range;
+  dst.push(undo.base); undo.base = src.pop();
+  state.rows = JSON.parse(undo.base);
+  const hit = firstChange(was, state.rows);
+  render(); save();
+  // Show what came back: the active cell goes to the first cell that changed; failing that it stays where it was.
+  nav.td = null; nav.edit = null;
+  const tr = hit && document.querySelector('tr[data-rid="' + CSS.escape(hit.rid) + '"]');
+  const td = tr && (rowCells(tr).find(x => x._col.key === hit.key) || rowCells(tr)[0]);
+  const old = !td && sel && findCell(document, sel.rid, sel.key);
+  if (td) selectCell(td);
+  else if (old) { setActive(old); if (range) setRange(range.from, range.to); old.focus({ preventScroll: true }); }
+}
+document.addEventListener('keydown', e => {
+  if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = e.key.toLowerCase(), redo = k === 'y' || (k === 'z' && e.shiftKey);
+  if (k !== 'z' && !redo) return;
+  // Somewhere text is being typed (a cell being edited, a search box, a dialog) the keys are that box's own undo.
+  if (nav.edit || menuEl || document.querySelector('dialog[open]') || (e.target.closest && e.target.closest('input:not([type=checkbox]), textarea, select, [contenteditable]'))) return;
+  e.preventDefault();
+  undoStep(redo);
+});
+
 function save() {
+  undoNote();
   clearTimeout(saveTimer);
   setSaveStatus('saving');
   saveTimer = setTimeout(() => fetch(TT.api('api/state'), { method: 'PUT', body: JSON.stringify(state) })
@@ -724,15 +806,16 @@ const daysUntil = d => Math.round((new Date(d) - new Date(today())) / 86400000);
 const hasDoneRule = level => rulesFor(level).some(r => r.effect && r.effect.done);
 
 // ---- aggregation (shown in a totals row under each grid) ----
-const AGG_LABELS = { count: 'Count', distinct: 'Distinct', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+// 'pivot' counts the rows for each distinct value and shows them as a breakdown card above the grid.
+const AGG_LABELS = { count: 'Count', distinct: 'Distinct', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max', pivot: 'Count by value' };
 const aggOptions = c => ({
-  number: ['count', 'distinct', 'sum', 'avg', 'min', 'max'],
-  date: ['count', 'min', 'max'],
-  checkbox: ['count'],
-  text: ['count', 'distinct'],
-  choice: ['count', 'distinct'],
-  person: ['count', 'distinct'],
-  lookup: ['count', 'distinct'],
+  number: ['count', 'pivot', 'distinct', 'sum', 'avg', 'min', 'max'],
+  date: ['count', 'pivot', 'min', 'max'],
+  checkbox: ['count', 'pivot'],
+  text: ['count', 'pivot', 'distinct'],
+  choice: ['count', 'distinct'],   // a counted choice column already shows as a breakdown card
+  person: ['count', 'pivot', 'distinct'],
+  lookup: ['count', 'pivot', 'distinct'],
   notes: ['count'],
 }[c.type]);
 const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -740,7 +823,7 @@ const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(
 function aggregate(c, list) {
   const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]);
   const filled = c.type === 'checkbox' ? vals.filter(Boolean) : vals.filter(v => v !== '' && v != null);
-  if (c.agg === 'count') return filled.length;
+  if (c.agg === 'count' || c.agg === 'pivot') return filled.length;
   if (c.agg === 'distinct') return new Set(filled).size;
   if (c.type === 'date') {
     if (!filled.length) return '';
@@ -781,7 +864,11 @@ function placeMenu(m, anchor) {
     if (h > above) m.style.maxHeight = above + 'px';
   }
 }
-const closeMenu = () => { if (menuEl) menuEl.remove(); menuEl = null; };
+const closeMenu = () => {
+  if (!menuEl) return;
+  menuEl.remove(); menuEl = null;
+  if (nav.td && nav.td.isConnected && (!document.activeElement || document.activeElement === document.body)) nav.td.focus({ preventScroll: true });   // the keyboard goes back to the grid
+};
 document.addEventListener('mousedown', e => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 
@@ -802,7 +889,7 @@ function openMenu(anchor, c, ui, rows, refresh) {
   );
   const aggSel = el('select');
   aggSel.append(el('option', { value: '', textContent: 'None' }));
-  aggOptions(c).forEach(a => aggSel.append(el('option', { value: a, textContent: c.type === 'checkbox' ? 'Checked' : AGG_LABELS[a] })));
+  aggOptions(c).forEach(a => aggSel.append(el('option', { value: a, textContent: a === 'pivot' ? AGG_LABELS.pivot : c.type === 'checkbox' ? 'Checked' : AGG_LABELS[a] })));
   aggSel.value = c.agg || '';
   aggSel.onchange = () => { if (aggSel.value) c.agg = aggSel.value; else delete c.agg; save(); closeMenu(); refresh(); };
   m.append(el('label', { className: 'aggrow' }, 'Total', aggSel), el('hr'));
@@ -841,6 +928,392 @@ function addFlag(td, f) {
   pick ? fx.insertBefore(f, pick) : fx.append(f);
 }
 
+// ---- spreadsheet-style cell navigation ----
+// One cell on the page is active. It is either selected (the cell itself holds the focus: arrows, Tab and Enter move, typing
+// starts an entry) or being edited (its text box holds the focus). A grid redraws its rows after every change, so the active
+// cell is remembered by row id and column key and found again afterwards (navBefore / navAfter, called by each grid's body()).
+// nav.range is a block of cells in the active cell's grid, held by two corners (row id and column key each) so it too survives a redraw.
+const nav = { td: null, rid: null, key: null, edit: null, tabKey: null, noFocus: false, range: null, painted: [], copied: [], clip: null, eatClick: false };
+let navCommitting = false;
+const ARROWS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+const cellOf = t => { const td = t && t.closest ? t.closest('td') : null; return td && td._col ? td : null; };
+const cellKind = c => c.type === 'checkbox' ? 'check' : c.type === 'notes' ? 'notes' : c.type === 'person' || c.type === 'lookup' || isMulti(c) ? 'menu' : c.type === 'choice' ? 'select' : 'text';
+const cellEditor = td => td.querySelector('input:not([type=checkbox])');
+const gridRows = td => [...td.closest('tbody').children].filter(tr => tr.dataset.rid);
+const rowCells = tr => [...tr.children].filter(td => td._col);
+const findCell = (root, rid, key) => {
+  const tr = root.querySelector('tr[data-rid="' + CSS.escape(String(rid)) + '"]');
+  return (tr && rowCells(tr).find(td => td._col.key === key)) || null;
+};
+
+function setActive(td) {
+  if (td === nav.td) return;
+  if (nav.td) { nav.td.classList.remove('active'); nav.td.tabIndex = -1; }
+  nav.td = td; nav.tabKey = null;
+  if (td) { td.classList.add('active'); td.tabIndex = 0; nav.rid = td._row.id; nav.key = td._col.key; }
+  setRange(null);
+}
+function selectCell(td, scroll = true) {
+  setActive(td);
+  setRange(null);
+  td.focus({ preventScroll: true });
+  if (scroll) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+// ---- a block of cells ----
+const cellId = td => ({ rid: td._row.id, key: td._col.key });
+// The block as rows of cells, top-left first; null when there is none or one of its corners is no longer shown.
+function rangeCells() {
+  const td = nav.td, g = nav.range;
+  if (!g || !td || !td.isConnected) return null;
+  const tbody = td.closest('tbody'), a = findCell(tbody, g.from.rid, g.from.key), b = findCell(tbody, g.to.rid, g.to.key);
+  if (!a || !b || a.closest('tbody') !== tbody || b.closest('tbody') !== tbody) return null;
+  const rows = gridRows(a), col = x => rowCells(x.parentNode).indexOf(x), span = (x, y) => [Math.min(x, y), Math.max(x, y) + 1];
+  const [r0, r1] = span(rows.indexOf(a.parentNode), rows.indexOf(b.parentNode)), [c0, c1] = span(col(a), col(b));
+  return rows.slice(r0, r1).map(tr => rowCells(tr).slice(c0, c1));
+}
+function setRange(from, to) {
+  nav.range = from && to && (from.rid !== to.rid || from.key !== to.key) ? { from, to } : null;
+  nav.painted.forEach(td => td.classList.remove('inrange'));
+  const cells = rangeCells();
+  if (!cells) nav.range = null;
+  nav.painted = cells ? cells.flat() : [];
+  nav.painted.forEach(td => td.classList.add('inrange'));
+}
+// Stretch the block from the active cell (or the corner it already starts at) to this cell.
+function extendTo(td, scroll = true) {
+  setRange(nav.range ? nav.range.from : cellId(nav.td), cellId(td));
+  if (scroll) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+// The corner that Shift + arrows move: the far end of the block, or the active cell when there is no block.
+const rangeEnd = td => (nav.range && findCell(td.closest('tbody'), nav.range.to.rid, nav.range.to.key)) || td;
+const selectedCells = td => rangeCells() || [[td]];
+const markCopied = cells => { nav.copied.forEach(td => td.classList.remove('copied')); nav.copied = cells; cells.forEach(td => td.classList.add('copied')); };
+
+// mode 'enter': typing over the cell, so the arrows finish the entry and move on. mode 'edit' (F2, double-click): the arrows move the caret.
+function beginEdit(td, mode, at) {
+  const inp = cellEditor(td);
+  if (!inp) return;
+  setActive(td);
+  setRange(null);
+  nav.edit = { td, inp, start: inp.value, mode };
+  td.classList.add('typing');
+  inp.focus({ preventScroll: true });
+  if (mode === 'enter') return inp.select();
+  try {   // caret where the double-click landed, else at the end; number and date boxes have no caret to place
+    const p = at && document.caretPositionFromPoint ? document.caretPositionFromPoint(at.x, at.y) : null;
+    const pos = p && p.offsetNode === inp ? p.offset : inp.value.length;
+    inp.setSelectionRange(pos, pos);
+  } catch {}
+}
+function endEdit(commit) {
+  const ed = nav.edit;
+  if (!ed) return;
+  nav.edit = null;
+  ed.td.classList.remove('typing');
+  if (!commit) { ed.inp.value = ed.start; ed.inp.dispatchEvent(new Event('input')); return; }
+  if (ed.inp.value === ed.start) return;
+  navCommitting = true;
+  try { ed.inp.dispatchEvent(new Event('change', { bubbles: true })); } finally { navCommitting = false; }
+}
+// Leave the current cell for another. Committing an edit can redraw the grid, so the target is found again by id.
+function goTo(t, tabKey = null) {
+  const id = t && { rid: t._row.id, key: t._col.key };
+  endEdit(true);
+  const td = (t && t.isConnected ? t : id && findCell(document, id.rid, id.key)) || nav.td;
+  if (td && td.isConnected) selectCell(td);
+  nav.tabKey = tabKey;
+}
+
+// The cell dr rows and dc columns away, stopping at the edges of the cell's own grid; `far` goes straight to the edge.
+function cellAt(td, dr, dc, far) {
+  const rows = gridRows(td), cells = rowCells(td.parentNode);
+  const to = (i, d, n) => Math.max(0, Math.min(n - 1, far && d ? (d < 0 ? 0 : n - 1) : i + d));
+  return rowCells(rows[to(rows.indexOf(td.parentNode), dr, rows.length)])[to(cells.indexOf(td), dc, cells.length)] || td;
+}
+// Tab order: along the row, then on to the next row. Null at either end of the grid, where Tab leaves it.
+function tabCell(td, d) {
+  const cells = rowCells(td.parentNode), next = cells[cells.indexOf(td) + d];
+  if (next) return next;
+  const rows = gridRows(td), tr = rows[rows.indexOf(td.parentNode) + d];
+  return tr ? (d > 0 ? rowCells(tr)[0] : rowCells(tr).pop()) : null;
+}
+// Enter: down (Shift: up). After a run of Tabs it returns to the column the run started in, so rows can be typed in one after another.
+function enterCell(td, d) {
+  const t = cellAt(td, d, 0);
+  if (t === td) return null;
+  return (d > 0 && nav.tabKey && rowCells(t.parentNode).find(x => x._col.key === nav.tabKey)) || t;
+}
+
+// Open a cell for input: edit its text, tick its box, or open its dropdown, picker or notes.
+function activate(td) {
+  const kind = cellKind(td._col);
+  if (kind === 'text') beginEdit(td, 'edit');
+  else if (kind === 'check') td.querySelector('input[type=checkbox]').click();
+  else if (kind === 'select') { const s = td.querySelector('select'); s.focus({ preventScroll: true }); try { s.showPicker(); } catch {} }
+  else if (kind === 'notes') td.querySelector('button').click();
+  else td.click();
+}
+const copyVal = v => Array.isArray(v) ? v.slice() : v;
+const blankFor = c => c.type === 'checkbox' ? false : isMulti(c) ? [] : '';
+const isBlank = v => v == null || v === '' || v === false || (Array.isArray(v) && !v.length);
+// Write to several cells of one grid at once, then save and redraw once. `write(td)` returns true when it changed the cell.
+function writeCells(tds, write) {
+  const n = tds.filter(write).length;
+  if (n) { save(); tds[0].closest('tbody')._redraw(); }
+  return n;
+}
+const clearCells = tds => writeCells(tds, td => {
+  const c = td._col;
+  if (c.type === 'notes' || isBlank(td._row[c.key])) return false;   // notes are only deleted from their own editor
+  td._row[c.key] = blankFor(c);
+  return true;
+});
+
+// ---- copy, cut and paste: tab-separated text, the form spreadsheets use, so blocks move both ways ----
+// What a cell copies as: what it shows, in a form that pastes back in.
+function cellText(c, v) {
+  if (c.type === 'checkbox') return v ? 'TRUE' : 'FALSE';
+  if (c.type === 'notes') return plainText(v);
+  if (c.type === 'date') return dateFormat(c) === 'native' ? String(v || '') : fmtDate(v, dateFormat(c));
+  if (isLookup(c)) return [].concat(shown(c, v)).join(', ');
+  return isMulti(c) || Array.isArray(v) ? multiVals(v).join(', ') : String(v ?? '');
+}
+// The value a piece of pasted text means in this column; undefined when it cannot be one (not a number, not one of the choices…).
+function valueFromText(c, text) {
+  const t = String(text ?? '').replace(/\s*\n\s*/g, ' ').trim();
+  if (!t) return c.type === 'notes' ? undefined : blankFor(c);   // an empty cell never wipes notes
+  const among = (list, x) => list.find(o => o.toLowerCase() === x.trim().toLowerCase());
+  switch (c.type) {
+    case 'number': { const n = Number(/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t) ? t.replace(/,/g, '') : t); return Number.isFinite(n) ? n : undefined; }
+    case 'date': return parseDate(t, dateFormat(c)) || undefined;
+    case 'checkbox': return /^(true|yes|y|1|x|✓|checked|done)$/i.test(t) ? true : /^(false|no|n|0)$/i.test(t) ? false : undefined;
+    case 'person': { const p = findPerson(t); if (!p) people().push({ name: t }); return p ? p.name : t; }
+    case 'notes': return el('p', { textContent: String(text).trim() }).outerHTML.replace(/\r?\n/g, '<br>');
+    case 'choice': {
+      const options = (c.options || []).filter(Boolean);
+      if (!isMulti(c)) return among(options, t);
+      const hits = t.split(/[,;|]/).map(x => among(options, x)).filter(Boolean);
+      return hits.length ? options.filter(o => hits.includes(o)) : undefined;
+    }
+    case 'lookup': {
+      const one = TT.lookupFind(c, t);
+      if (!isMulti(c)) return one || undefined;
+      if (one) return [one];
+      const ids = t.split(/[,;|]/).map(x => TT.lookupFind(c, x));
+      return ids.length && ids.every(Boolean) ? [...new Set(ids)] : undefined;
+    }
+    default: return t;
+  }
+}
+const tsvCell = t => /["\t\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+function parseTsv(text) {
+  const rows = [[]];
+  let cell = '', quoted = false, i = 0;
+  const endCell = () => { rows[rows.length - 1].push(cell); cell = ''; };
+  for (text = text.replace(/\r\n?/g, '\n'); i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) { if (ch !== '"') cell += ch; else if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false; }
+    else if (ch === '"' && !cell) quoted = true;
+    else if (ch === '\t') endCell();
+    else if (ch === '\n') { endCell(); rows.push([]); }
+    else cell += ch;
+  }
+  endCell();
+  if (rows.length > 1 && rows[rows.length - 1].join('') === '') rows.pop();   // spreadsheets end the block with a line break
+  return rows;
+}
+// The cell the keyboard is on, when it is selected rather than being typed in: the only time the clipboard keys belong to the grid.
+const clipCell = () => { const a = document.activeElement, td = cellOf(a); return td && td === nav.td && !nav.edit && a.tagName !== 'INPUT' ? td : null; };
+function copyCells(e, cut) {
+  const td = clipCell();
+  if (!td) return;
+  const cells = selectedCells(td);
+  const text = cells.map(r => r.map(x => tsvCell(cellText(x._col, x._row[x._col.key]))).join('\t')).join('\n');
+  e.clipboardData.setData('text/plain', text);
+  e.preventDefault();
+  // Kept beside the text: a lookup's ids and a note's formatting, which the text alone cannot carry back.
+  nav.clip = { text, cells: cells.map(r => r.map(x => ({ c: x._col, v: copyVal(x._row[x._col.key]) }))) };
+  if (cut) clearCells(cells.flat());
+  else markCopied(cells.flat());
+}
+function pasteCells(e) {
+  const td = clipCell();
+  if (!td) return;
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n');
+  if (!text) return;
+  const data = parseTsv(text), own = nav.clip && nav.clip.text === text.replace(/\n$/, '') ? nav.clip.cells : null;
+  const h = data.length, w = Math.max(...data.map(r => r.length));
+  const sel = selectedCells(td), first = sel[0][0];
+  // A selection that the copied block fits into a whole number of times is filled with repeats of it (one value into many cells, one row down many rows).
+  const tile = sel.length % h === 0 && sel[0].length % w === 0;
+  const H = tile ? sel.length : h, W = tile ? sel[0].length : w;
+  const rows = gridRows(first), r0 = rows.indexOf(first.parentNode), c0 = rowCells(first.parentNode).indexOf(first);
+  const todo = [];
+  let outside = 0, unfit = 0, last = first;
+  for (let i = 0; i < H; i++) for (let j = 0; j < W; j++) {
+    const t = rows[r0 + i] && rowCells(rows[r0 + i])[c0 + j];
+    if (!t) { outside++; continue; }
+    const c = t._col, src = own && own[i % h][j % w];
+    // From this page's own copy a lookup or a note takes the stored value when the columns match; everything else goes by the text.
+    const exact = src && src.c.type === c.type && (c.type === 'notes' || (isLookup(c) && src.c.set === c.set && isMulti(src.c) === isMulti(c)));
+    const v = exact ? copyVal(src.v) : valueFromText(c, data[i % h][j % w] ?? '');
+    if (v === undefined) { unfit++; continue; }
+    todo.push([t, v]); last = t;
+  }
+  const from = cellId(first), to = cellId(last), values = new Map(todo);
+  writeCells(todo.map(x => x[0]), t => {
+    const v = values.get(t), was = t._row[t._col.key];
+    if (JSON.stringify(v) === JSON.stringify(was) || (isBlank(v) && isBlank(was))) return false;
+    t._row[t._col.key] = v;
+    return true;
+  });
+  const top = findCell(document, from.rid, from.key);   // leave what was pasted selected, the active cell at its top left
+  if (top) { setActive(top); top.focus({ preventScroll: true }); }
+  setRange(from, to);
+  if (unfit || outside) toast([unfit && unfit + (unfit === 1 ? ' cell was' : ' cells were') + ' left alone: the pasted value does not fit the column', outside && outside + (outside === 1 ? ' cell' : ' cells') + ' fell outside the grid'].filter(Boolean).join('; ') + '.', true);
+}
+document.addEventListener('copy', e => copyCells(e, false));
+document.addEventListener('cut', e => copyCells(e, true));
+document.addEventListener('paste', pasteCells);
+
+document.addEventListener('keydown', e => {
+  if (e.defaultPrevented) return;
+  const td = cellOf(e.target);
+  if (!td) return;
+  const k = e.key, mod = e.ctrlKey || e.metaKey, back = e.shiftKey, a = ARROWS[k];
+  const ed = nav.edit && nav.edit.inp === e.target ? nav.edit : null;
+  const kind = cellKind(td._col);
+  const stop = () => e.preventDefault();
+  if (e.isComposing || k === 'Process') { if (!ed && e.target === td && kind === 'text') beginEdit(td, 'enter'); return; }
+
+  if (k === 'Tab' && !mod && !e.altKey) {
+    const t = tabCell(td, back ? -1 : 1);
+    if (!t) return;   // out of the grid; an edit commits as its box loses the focus
+    stop(); return goTo(t, nav.tabKey || td._col.key);
+  }
+  if (k === 'Enter' && !mod && !e.altKey) { stop(); return goTo(enterCell(td, back ? -1 : 1)); }
+
+  if (ed) {
+    if (k === 'Escape') { stop(); endEdit(false); return selectCell(td); }
+    if (k === 'F2') { stop(); ed.mode = ed.mode === 'edit' ? 'enter' : 'edit'; return; }
+    // A date picker box keeps its own arrows; a number box never steps its value with them.
+    if (a && !back && !e.altKey && ed.inp.type !== 'date' && (ed.mode === 'enter' || (ed.inp.type === 'number' && a[0]))) { stop(); goTo(cellAt(td, a[0], a[1], mod)); }
+    return;
+  }
+  if (e.target.tagName === 'SELECT') {   // a dropdown that has the focus but is closed: up and down stay its own
+    if (k === 'Escape') { stop(); selectCell(td); }
+    else if (a && !a[0] && !e.altKey) { stop(); selectCell(cellAt(td, 0, a[1], mod)); }
+    return;
+  }
+
+  // With Shift the movement keys stretch a block of cells from the active one instead of moving it.
+  const from = back ? rangeEnd(td) : td, move = t => { stop(); back ? extendTo(t) : selectCell(t); };
+  if (a) {
+    if (e.altKey) { stop(); if (k === 'ArrowDown' && kind !== 'check') activate(td); return; }
+    return move(cellAt(from, a[0], a[1], mod));
+  }
+  if (k === 'Home' || k === 'End') { const d = k === 'Home' ? -1 : 1; return move(cellAt(from, mod ? d : 0, d, true)); }
+  if (k === 'PageUp' || k === 'PageDown') { const n = Math.max(1, Math.floor(innerHeight / td.offsetHeight) - 3); return move(cellAt(from, k === 'PageUp' ? -n : n, 0)); }
+  if (mod && !e.altKey && k.toLowerCase() === 'a') {   // every cell of this grid
+    stop();
+    const rows = gridRows(td);
+    return setRange(cellId(rowCells(rows[0])[0]), cellId(rowCells(rows[rows.length - 1]).pop()));
+  }
+  if (k === 'F2') { stop(); if (kind !== 'check') activate(td); return; }
+  if (k === 'Delete') { stop(); return clearCells(selectedCells(td).flat()); }
+  if (k === 'Backspace') {   // empties the cell and leaves it open for typing; a block is just emptied
+    stop();
+    if (kind !== 'text' || nav.range) return clearCells(selectedCells(td).flat());
+    beginEdit(td, 'enter');
+    nav.edit.inp.value = ''; nav.edit.inp.dispatchEvent(new Event('input'));
+    return;
+  }
+  if (k === ' ' && kind !== 'text') { stop(); return activate(td); }
+  if (k === 'Escape') { nav.tabKey = null; setRange(null); markCopied([]); return; }
+  if (k.length === 1 && !mod && !e.altKey) {   // typing starts the entry, and this keystroke lands in whatever takes the focus
+    if (kind === 'text') beginEdit(td, 'enter');
+    else if (kind === 'select') td.querySelector('select').focus({ preventScroll: true });
+    else if (kind === 'menu') td.click();
+  }
+});
+
+document.addEventListener('mousedown', e => {
+  nav.eatClick = false;
+  if (e.button || e.defaultPrevented) return;
+  const td = cellOf(e.target), ed = nav.edit;
+  if (!td || (ed && e.target === ed.inp)) return;   // inside the box being edited a click places the caret; outside the grids an edit ends as its box loses the focus
+  const id = { rid: td._row.id, key: td._col.key };
+  const ctl = e.target.closest('select, button, input');
+  endEdit(true);
+  const t = td.isConnected ? td : findCell(document, id.rid, id.key);   // committing the edit may have redrawn the grid
+  if (!t) return;
+  const kind = cellKind(t._col), grid = t.closest('tbody');
+  if (e.shiftKey && nav.td && nav.td !== t && nav.td.closest('tbody') === grid) {   // Shift-click: a block from the active cell to this one
+    e.preventDefault();
+    nav.eatClick = true;   // the click must not also tick the box or open the picker it lands on
+    nav.td.focus({ preventScroll: true });
+    return extendTo(t, false);
+  }
+  if (t === td && ctl && (kind === 'select' || ctl.type === 'date')) return setActive(t);   // a dropdown or date picker box takes the click itself
+  e.preventDefault();
+  if (e.detail > 1 && kind === 'text' && t === td) return beginEdit(t, 'edit', { x: e.clientX, y: e.clientY });
+  selectCell(t, false);
+  if (t !== td && (ctl || kind === 'menu')) activate(t);   // the redraw swallowed the click, so do what it was for
+  // Dragging on across other cells of the same grid selects the block.
+  const drag = ev => {
+    const over = cellOf(ev.target);
+    if (!over || nav.td !== t || over.closest('tbody') !== grid || over === rangeEnd(t)) return;
+    nav.eatClick = true;
+    extendTo(over, false);
+  };
+  const drop = () => { removeEventListener('mousemove', drag); removeEventListener('mouseup', drop); };
+  addEventListener('mousemove', drag);
+  addEventListener('mouseup', drop);
+});
+document.addEventListener('click', e => { if (nav.eatClick) { nav.eatClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener('mouseup', () => setTimeout(() => (nav.eatClick = false)));   // only the click that ends this press is swallowed
+document.addEventListener('focusin', e => {
+  const td = cellOf(e.target);
+  if (!td) return;
+  setActive(td);
+  if (!nav.edit && e.target === cellEditor(td) && cellKind(td._col) === 'text') {   // a box focused directly (a new row, a date picker box) is being edited
+    nav.edit = { td, inp: e.target, start: e.target.value, mode: e.target.value ? 'edit' : 'enter' };
+    td.classList.add('typing');
+  }
+});
+document.addEventListener('focusout', e => {
+  if (!nav.edit || e.target !== nav.edit.inp) return;
+  nav.noFocus = !!e.relatedTarget;   // the focus is on its way somewhere else: commit, but do not pull it back to the grid
+  try { endEdit(true); } finally { nav.noFocus = false; }
+});
+// While a cell is being edited its value is written once, when the edit ends, not whenever the box reports a change (a date picker box does so mid-typing).
+document.addEventListener('change', e => { if (nav.edit && e.target === nav.edit.inp && !navCommitting) e.stopPropagation(); }, true);
+
+// A grid calls these around a redraw of its rows: note where the active cell is and whether the keyboard is with the grid, then find the cell again.
+function navBefore(tbody) {
+  if (!nav.td || !tbody.contains(nav.td)) return null;
+  const a = document.activeElement;
+  return { focus: !nav.noFocus && (!a || a === document.body || tbody.contains(a)), own: nav.td.closest('tbody') === tbody, row: gridRows(nav.td).indexOf(nav.td.parentNode) };
+}
+function navAfter(tbody, keep) {
+  let td = null;
+  if (keep) {
+    if (nav.edit && !nav.edit.td.isConnected) nav.edit = null;
+    const tabKey = nav.tabKey;
+    td = findCell(tbody, nav.rid, nav.key);
+    if (!td && keep.own && keep.focus) {   // its row has gone (deleted, or filtered out by the change): stay at the same place in the grid
+      const rows = [...tbody.children].filter(tr => tr.dataset.rid), tr = rows[Math.min(keep.row, rows.length - 1)];
+      td = (tr && rowCells(tr).find(x => x._col.key === nav.key)) || null;
+    }
+    const range = nav.range;
+    nav.td = null;
+    if (td) { setActive(td); nav.tabKey = tabKey; if (range) setRange(range.from, range.to); if (keep.focus) td.focus({ preventScroll: true }); }
+  }
+  if (!td) { const first = tbody.querySelector(':scope > tr[data-rid] > td.cell'); if (first) first.tabIndex = 0; }   // Tab from outside lands on the grid's first cell
+}
+
 // Generic grid used for every level: level 0 is the main table, deeper levels are nested sub-record tables.
 function makeGrid(level, rows, ui, opts) {
   const cols = levels()[level].columns;
@@ -854,7 +1327,7 @@ function makeGrid(level, rows, ui, opts) {
   const thead = el('thead'), tbody = el('tbody');
   const tfoot = el('tfoot');
   table.append(colgroup, thead, tbody, tfoot);
-  const TOG_W = 50, ACT_W = 30, SEL_W = 30;
+  const TOG_W = 40, ACT_W = 30, SEL_W = 26;   // expand toggle, row delete, tick box: kept narrow so data starts near the left edge
   const fixedCols = (opts.subGrid ? TOG_W : 0) + SEL_W + ACT_W;
   const span = cols.length + (opts.subGrid ? 3 : 2);
   ui.sel = ui.sel || new Set();   // ids of rows ticked for a bulk action
@@ -917,7 +1390,7 @@ function makeGrid(level, rows, ui, opts) {
   const selCount = el('span');
   const deleteSelected = async () => {
     const n = ui.sel.size;
-    if (!n || !await ask('Delete ' + n + ' selected ' + (n === 1 ? 'row' : 'rows') + (opts.subGrid ? ' and everything nested under ' + (n === 1 ? 'it' : 'them') : '') + '? This cannot be undone.', 'Delete', { danger: true })) return;
+    if (!n || !await ask('Delete ' + n + ' selected ' + (n === 1 ? 'row' : 'rows') + (opts.subGrid ? ' and everything nested under ' + (n === 1 ? 'it' : 'them') : '') + '?', 'Delete', { danger: true })) return;
     for (let i = rows.length - 1; i >= 0; i--) if (ui.sel.has(rows[i].id)) rows.splice(i, 1);
     ui.sel.clear(); save();
     opts.onStructure ? opts.onStructure() : body();
@@ -939,6 +1412,7 @@ function makeGrid(level, rows, ui, opts) {
   }
 
   function body() {
+    const keep = navBefore(tbody);
     tbody.replaceChildren();
     drawChips();
     let list = rows.filter(r => matches(r, cols, ui));
@@ -952,7 +1426,7 @@ function makeGrid(level, rows, ui, opts) {
       if (opts.subGrid) fr.append(el('td'));
       fr.append(el('td'));
       cols.forEach(c => fr.append(c.agg
-        ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
+        ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : c.agg === 'pivot' ? 'Count' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
         : el('td')));
       fr.append(el('td'));
       tfoot.append(fr);
@@ -1011,6 +1485,9 @@ function makeGrid(level, rows, ui, opts) {
       cols.forEach(c => {
         const td = cell(row, c, cols);
         td._row = row; td._col = c;
+        td.classList.add('cell'); td.dataset.kind = cellKind(c);
+        td.tabIndex = -1;   // the cell takes the focus, not the controls inside it: see the cell navigation above
+        td.querySelectorAll('input, select, button').forEach(x => (x.tabIndex = -1));
         if (c === firstText) td.classList.add('strike');
         fired.filter(r => r.effect.apply === c.key).forEach(r => {   // badge / tint on the cell the rule points at
           td.classList.add('ruled');
@@ -1021,7 +1498,7 @@ function makeGrid(level, rows, ui, opts) {
       });
       tr.append(el('td', { className: 'act' }, el('button', {
         className: 'link', textContent: '✕', title: 'Delete row', ariaLabel: 'Delete row',
-        onclick: async () => { if (!await ask('Delete this row' + ((row.children || []).length ? ' and its ' + plural(row.children.length, levelTitle(level + 1)) : '') + '? This cannot be undone.', 'Delete', { danger: true })) return; rows.splice(rows.indexOf(row), 1); save(); opts.onStructure ? opts.onStructure() : body(); },
+        onclick: async () => { if (!await ask('Delete this row' + ((row.children || []).length ? ' and its ' + plural(row.children.length, levelTitle(level + 1)) : '') + '?', 'Delete', { danger: true })) return; rows.splice(rows.indexOf(row), 1); save(); opts.onStructure ? opts.onStructure() : body(); },
       })));
       tbody.append(tr);
       if (opts.subGrid && openRows.has(row.id)) {
@@ -1039,6 +1516,7 @@ function makeGrid(level, rows, ui, opts) {
         tbody.append(el('tr', {}, holder));
       }
     });
+    navAfter(tbody, keep);
   }
 
   function cell(row, c, cols) {
@@ -1277,24 +1755,14 @@ function makeGrid(level, rows, ui, opts) {
     return td;
   }
 
-  // ---- active cell + fill handle: click a cell, then drag the square in its corner down the column to copy its value ----
-  let activeTd = null;
-  const setActive = td => {
-    if (td === activeTd) return;
-    if (activeTd) activeTd.classList.remove('active');
-    activeTd = td && td._col ? td : null;
-    if (activeTd) activeTd.classList.add('active');
-  };
+  // ---- fill handle: drag the square in the corner of the active cell down the column to copy its value ----
+  tbody._redraw = body;
   const ownTd = t => { const td = t && t.closest && t.closest('td'); return td && td._col && td.closest('tbody') === tbody ? td : null; };
-  tbody.addEventListener('focusin', e => setActive(ownTd(e.target)));
   tbody.addEventListener('mousedown', e => {
     const td = ownTd(e.target);
-    if (!td) return;
-    if (td === activeTd) {
-      const r = td.getBoundingClientRect();
-      if (r.right - e.clientX <= 12 && r.bottom - e.clientY <= 12) { e.preventDefault(); startFill(td); return; }
-    }
-    setActive(td);
+    if (e.button || !td || td !== nav.td || nav.edit || nav.range) return;
+    const r = td.getBoundingClientRect();
+    if (r.right - e.clientX <= 12 && r.bottom - e.clientY <= 12) { e.preventDefault(); startFill(td); }
   });
   const cloneVal = v => Array.isArray(v) ? v.slice() : v;
   function startFill(src) {
@@ -1381,49 +1849,91 @@ function renderKpis() {
     if (pct != null) t.append(ring(pct, color));
     return t;
   };
-  // A choice column counted: the total on top, then one line per option with its share of the filled cells.
-  // Clicking a pill on a top-level column filters the grid by that choice (click again to remove it).
-  const breakdown = (c, list, label, total, color, depth) => {
-    const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]).filter(v => v !== '' && v != null);
+  // Breakdown cards. Values are the same keys the column filter uses, so clicking one on a top-level column
+  // filters the grid by it (again to clear; ⌘/Ctrl-click to add or remove from the selection).
+  const filterBy = (item, c, o, text) => {
+    const active = uiMain.vals[c.key];
+    item.type = 'button';
+    item.classList.toggle('on', !!(active && active.has(o)));
+    const only = active && active.size === 1 && active.has(o);
+    item.dataset.tip = (only ? 'Clear filter' : 'Show only ' + c.label + ': ' + text) + '\n' + (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '-click to add or remove from the selection';
+    item.onclick = e => {
+      let set;
+      if (e.ctrlKey || e.metaKey) {                       // add to / remove from the current selection
+        set = uiMain.vals[c.key] || new Set();
+        set.has(o) ? set.delete(o) : set.add(o);
+      } else set = only ? new Set() : new Set([o]);       // plain click: just this one (again to clear)
+      if (set.size) uiMain.vals[c.key] = set; else delete uiMain.vals[c.key];
+      render();
+    };
+  };
+  const countKeys = (c, list) => {
+    const all = list.flatMap(r => keysOf(c, r[c.key]));
     const counts = {};
-    vals.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+    all.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+    const blanks = counts[''] || 0;
+    delete counts[''];
+    return { counts, blanks, entries: all.length };
+  };
+  // A counted choice column: the total on top, a stacked bar, then one pill per option with its count.
+  const breakdown = (c, list, label, total, color, depth) => {
+    const { counts } = countKeys(c, list);
     const names = [...new Set([...(c.options || []), ...Object.keys(counts)])];
     const t = tile(label, total, color, ICONS.count);
     t.classList.add('split');
-    const toneVar = o => toneColor(optionTone(c, o) || 'gray');
     const stack = el('div', { className: 'stack' });
     names.filter(o => counts[o]).forEach(o => {
       const seg = el('span', { title: o + ': ' + counts[o] });
       seg.style.width = (counts[o] / total * 100) + '%';
-      seg.style.background = toneVar(o);
+      seg.style.background = toneColor(optionTone(c, o) || 'gray');
       stack.append(seg);
     });
     const legend = el('div', { className: 'legend' });
-    const active = depth === 0 ? uiMain.vals[c.key] : null;
     names.forEach(o => {
       const item = el(depth === 0 ? 'button' : 'span', { className: 'pill', textContent: o });
       item.dataset.tone = optionTone(c, o);
       item.append(el('b', { textContent: counts[o] || 0 }));
-      if (depth === 0) {
-        item.type = 'button';
-        item.classList.toggle('on', !!(active && active.has(o)));
-        const only = active && active.size === 1 && active.has(o);
-        item.dataset.tip = (only ? 'Clear filter' : 'Show only ' + c.label + ': ' + o) + '\n' + (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '-click to add or remove from the selection';
-        item.onclick = e => {
-          let set;
-          if (e.ctrlKey || e.metaKey) {                       // add to / remove from the current selection
-            set = uiMain.vals[c.key] || new Set();
-            set.has(o) ? set.delete(o) : set.add(o);
-          } else set = only ? new Set() : new Set([o]);       // plain click: just this one (again to clear)
-          if (set.size) uiMain.vals[c.key] = set; else delete uiMain.vals[c.key];
-          render();
-        };
-      }
+      if (depth === 0) filterBy(item, c, o, o);
       legend.append(item);
     });
-    if (active) t.classList.add('filtering');
+    if (depth === 0 && uiMain.vals[c.key]) t.classList.add('filtering');
     if (!names.length) legend.append(el('span', { className: 'none', textContent: 'No choices yet' }));
     t.append(el('div', { className: 'opts' }, stack, legend));
+    return t;
+  };
+  // "Count by value" on any column: a small table. The column's name is the title; each row is one value with a
+  // bar, how many rows have it, and that as a share of all rows. Value on the left, count on the right, so a
+  // column of numbers (Priority 1 / 2) cannot be misread as "1 7". Blank cells get their own muted row.
+  const pivotCard = (c, list, title, color, depth) => {
+    const { counts, blanks, entries } = countKeys(c, list);
+    const MAX = 8;   // a free-text column can have any number of values: show the most common, sum up the rest
+    let names = Object.keys(counts).sort((a, b) => compare(a, b, c.type === 'number' ? 'number' : 'text'));
+    const extra = names.length <= MAX ? [] : names.slice().sort((a, b) => counts[b] - counts[a]).slice(MAX);
+    if (extra.length) names = names.filter(n => !extra.includes(n));
+    const show = o => c.type === 'date' ? fmtDate(o, dateFormat(c)) : o;
+    const distinct = names.length + extra.length;
+    const t = el('div', { className: 'kpi pivot' });
+    t.style.setProperty('--kc', color);
+    t.append(el('div', { className: 'phead' }, el('span', { className: 'pt', textContent: title }),
+      el('span', { className: 'ps', textContent: distinct + (distinct === 1 ? ' value' : ' values') + ' · ' + list.length + (list.length === 1 ? ' row' : ' rows') })));
+    const rowsBox = el('div', { className: 'prows' });
+    const longest = Math.max(1, blanks, ...names.map(o => counts[o]));
+    const line = (o, n, text) => {
+      const row = el(depth === 0 ? 'button' : 'div', { className: 'prow' + (o === '' ? ' blank' : '') });
+      const bar = el('i');
+      bar.style.width = (n / longest * 100) + '%';
+      if (o !== '' && isStatusCol(c) && tone(o)) bar.style.background = toneColor(tone(o));   // status columns keep their value colours
+      row.append(el('span', { className: 'pv', textContent: text }), el('span', { className: 'pbar' }, bar),
+        el('b', { className: 'pc', textContent: n }), el('span', { className: 'pp', textContent: Math.round(n / (entries || 1) * 100) + '%' }));
+      if (depth === 0) filterBy(row, c, o, o === '' ? 'blank' : text);
+      rowsBox.append(row);
+    };
+    names.forEach(o => line(o, counts[o], show(o)));
+    if (blanks) line('', blanks, '(Blank)');
+    if (extra.length) rowsBox.append(el('div', { className: 'pmore', textContent: '+ ' + extra.length + ' more ' + (extra.length === 1 ? 'value' : 'values') + ' in ' + extra.reduce((n, o) => n + counts[o], 0) + ' rows' }));
+    if (!names.length && !blanks) rowsBox.append(el('div', { className: 'pmore', textContent: 'No values yet' }));
+    if (depth === 0 && uiMain.vals[c.key]) t.classList.add('filtering');
+    t.append(rowsBox);
     return t;
   };
   box.replaceChildren();
@@ -1432,8 +1942,9 @@ function renderKpis() {
   const addTiles = (cols, list, prefix, depth) => cols.filter(c => c.agg).forEach(c => {
     const color = PALETTE[i++ % PALETTE.length];
     const v = aggregate(c, list);
-    const label = prefix + c.label + ' · ' + (c.type === 'checkbox' ? 'checked' : AGG_LABELS[c.agg].toLowerCase());
-    if (c.type === 'checkbox') { const t = tile(label, v, color, ICONS.count, list.length ? v / list.length : 0); t.querySelector('.v').append(el('small', { textContent: '/ ' + list.length })); box.append(t); }
+    const label = prefix + c.label + ' · ' + (c.agg === 'pivot' ? 'by value' : c.type === 'checkbox' ? 'checked' : AGG_LABELS[c.agg].toLowerCase());
+    if (c.agg === 'pivot') box.append(pivotCard(c, list, prefix + c.label, color, depth));
+    else if (c.type === 'checkbox') { const t = tile(label, v, color, ICONS.count, list.length ? v / list.length : 0); t.querySelector('.v').append(el('small', { textContent: '/ ' + list.length })); box.append(t); }
     else if (c.type === 'choice' && c.agg === 'count') box.append(breakdown(c, list, label, v, color, depth));
     else box.append(tile(label, v === '' ? '—' : v, color, c.type === 'date' ? ICONS.date : ICONS[c.agg]));
   });
@@ -1938,6 +2449,7 @@ function openConfig(start) {
     state.config = { title: titleIn.value.trim() || 'Untitled', people: newPeople, levels: newLevels };
     const projectName = projIn.value.trim();
     if (projectName && projectName !== state.projectName) { state.projectName = projectName; TT.renameProject(projectName); }
+    undoReset();   // earlier versions of the rows belong to the old columns and people
     save(); render();
   };
   dlg.className = 'config';
@@ -1948,6 +2460,7 @@ function openConfig(start) {
 TT.ready.then(() => fetch(TT.api('api/state'))).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(s => {
   state = s;
   levels().forEach(l => l.columns.forEach(c => { if (c.type === 'text' && c.look === 'person') { c.type = 'person'; delete c.look; } }));
+  undoReset();
   render();
   if (location.hash === '#configure') { history.replaceState(null, '', location.pathname + location.search); openConfig(); }
 }).catch(() => { setSaveStatus('error', 'Not connected'); document.getElementById('main').replaceChildren(el('div', { className: 'card empty' }, el('b', { textContent: 'Could not load your data' }), el('span', { textContent: 'Check that the server is running, then reload the page.' }))); });

@@ -36,6 +36,10 @@
   table.map { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
   table.map th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); padding:6px 8px; border-bottom:1px solid var(--line); }
   table.map td { padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.map .goes { display:flex; gap:6px; align-items:center; }
+  table.map .goes select.ntype { flex:none; width:118px; }
+  table.map tr.isnew td:first-child b::after { content:"new"; margin-left:8px; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:1px 6px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); }
+  .mapbar { display:flex; align-items:center; gap:10px; margin-top:8px; }
   table.map td.sample { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
   .pv { overflow:auto; border:1px solid var(--line); border-radius:12px; margin-top:12px; max-height:360px; }
   table.pv { border-collapse:collapse; font-size:12px; min-width:100%; }
@@ -110,8 +114,9 @@
         </div>
         <div class="step off" id="stepMap">
           <h3>Match columns</h3>
-          <div class="muted">Each file column is matched to a field by name. Change any match, or skip a column. A sub level needs a <b>Parent ID</b> so each record joins to its parent.</div>
+          <div class="muted">Each file column is matched to a field by name. Change any match, skip a column, or choose <b>Create a new column</b> to add it to the data set. A sub level needs a <b>Parent ID</b> so each record joins to its parent.</div>
           <table class="map"><thead><tr><th>File column</th><th>Sample</th><th>Goes to</th></tr></thead><tbody id="mapBody"></tbody></table>
+          <div class="mapbar"><button type="button" class="ghost" id="newAllBtn"></button></div>
           <label class="check" style="margin-top:10px"><input type="checkbox" id="addOptions" checked>Add unknown values to choice columns' option lists</label>
           <label class="check" style="margin-top:6px"><input type="checkbox" id="skipBad" checked>Skip rows with errors instead of stopping the import</label>
         </div>
@@ -322,7 +327,9 @@ function coerce(raw, c, opts, warn) {
 }
 
 // ---------- CSV import wizard ----------
-const imp = { file: null, text: '', rows: [], header: [], mapping: [], plan: null };
+// mapping[i] is where file column i goes: '__skip', 'id', 'parent_id', or a column key. newCols[i] is the column
+// that will be created for file column i when its mapping is "Create a new column" (its key is then mapping[i]).
+const imp = { file: null, text: '', rows: [], header: [], mapping: [], newCols: {}, plan: null };
 const stepMap = $('stepMap'), stepPreview = $('stepPreview');
 
 wireDrop('csvDrop', 'csvFile', async file => {
@@ -351,7 +358,7 @@ function parseAndMap() {
 
 function targets() {
   const li = +$('level').value;
-  const t = [{ key: '__skip', label: 'Skip this column' }, { key: 'id', label: 'ID' }];
+  const t = [{ key: '__skip', label: 'Skip this column' }, { key: '__new', label: '＋ Create a new column' }, { key: 'id', label: 'ID' }];
   if (li > 0) t.push({ key: 'parent_id', label: 'Parent ID (' + levelTitle(li - 1) + ')' });
   levels()[li].columns.forEach(c => t.push({ key: c.key, label: c.label + ' · ' + c.type + (isMulti(c) ? ' (multiple)' : '') }));
   return t;
@@ -361,6 +368,7 @@ function autoMap() {
   const li = +$('level').value;
   const cols = levels()[li].columns;
   const used = new Set();
+  imp.newCols = {};
   imp.mapping = imp.header.map(h => {
     const n = norm(h);
     let hit = null;
@@ -372,18 +380,55 @@ function autoMap() {
     return hit;
   });
 }
+// A file column with no matching field can become a new column: its name is the file's heading and its type is
+// guessed from the values (and can be changed here). Nothing is created until the import is confirmed.
+const NEW_TYPES = [['text', 'Text'], ['number', 'Number'], ['date', 'Date'], ['checkbox', 'Yes / no'], ['choice', 'Choice'], ['person', 'Person']];
+function makeNewCol(i) {
+  const li = +$('level').value;
+  const taken = new Set(['id', 'parent_id', 'children', ...levels()[li].columns.map(c => c.key), ...Object.values(imp.newCols).map(c => c.key)]);
+  let key = imp.header[i].trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'col';
+  while (taken.has(key)) key += '_';
+  const values = imp.rows.map(r => r[i] ?? '');
+  const g = TT.guessType(values);
+  const col = { key, label: imp.header[i].trim() || 'Column ' + (i + 1), type: g.type };
+  setNewType(col, values);
+  imp.newCols[i] = col;
+  imp.mapping[i] = key;
+}
+function setNewType(col, values) {
+  delete col.options; delete col.look;
+  if (col.type === 'text') col.look = 'plain';
+  if (col.type === 'choice') col.options = [...new Set(values.map(v => String(v).trim()).filter(Boolean))].slice(0, 100);
+}
+const newColsList = () => imp.header.map((h, i) => (imp.newCols[i] && imp.mapping[i] === imp.newCols[i].key ? imp.newCols[i] : null)).filter(Boolean);
 function renderMap() {
   const body = $('mapBody');
   body.replaceChildren();
   const t = targets();
   imp.header.forEach((h, i) => {
+    const fresh = imp.newCols[i] && imp.mapping[i] === imp.newCols[i].key ? imp.newCols[i] : null;
     const sel = el('select');
     t.forEach(o => sel.append(el('option', { value: o.key, textContent: o.label })));
-    sel.value = imp.mapping[i];
-    sel.onchange = () => { imp.mapping[i] = sel.value; buildPlan(); };
+    sel.value = fresh ? '__new' : imp.mapping[i];
+    sel.onchange = () => {
+      if (sel.value === '__new') makeNewCol(i); else { delete imp.newCols[i]; imp.mapping[i] = sel.value; }
+      renderMap(); buildPlan();
+    };
+    const goes = el('div', { className: 'goes' }, sel);
+    if (fresh) {
+      const type = el('select', { className: 'ntype', title: 'Type of the new column' });
+      NEW_TYPES.forEach(([v, text]) => type.append(el('option', { value: v, textContent: text, selected: v === fresh.type })));
+      type.onchange = () => { fresh.type = type.value; setNewType(fresh, imp.rows.map(r => r[i] ?? '')); buildPlan(); };
+      goes.append(type);
+    }
     const sample = imp.rows.slice(0, 3).map(r => r[i]).filter(Boolean).join(' · ');
-    body.append(el('tr', {}, el('td', {}, el('b', { textContent: h })), el('td', { className: 'sample', textContent: sample, title: sample }), el('td', {}, sel)));
+    body.append(el('tr', { className: fresh ? 'isnew' : '' }, el('td', {}, el('b', { textContent: h })), el('td', { className: 'sample', textContent: sample, title: sample }), el('td', {}, goes)));
   });
+  const unmatched = imp.mapping.filter(m => m === '__skip').length;
+  const all = $('newAllBtn');
+  all.parentNode.style.display = unmatched ? '' : 'none';   // the hidden attribute loses to the button styles
+  all.textContent = '＋ Create new columns for the ' + unmatched + ' skipped';
+  all.onclick = () => { imp.mapping.forEach((m, i) => { if (m === '__skip') makeNewCol(i); }); renderMap(); buildPlan(); };
   stepMap.classList.remove('off');
 }
 
@@ -391,7 +436,8 @@ function buildPlan() {
   if (!imp.rows.length) { stepPreview.classList.add('off'); return; }
   const li = +$('level').value;
   const mode = $('mode').value;
-  const cols = levels()[li].columns;
+  const newCols = newColsList();
+  const cols = [...levels()[li].columns, ...newCols];
   const opts = { dateFmt: $('dateFmt').value, addOptions: $('addOptions').checked, newOptionsMap: new Map() };
   opts.newOptions = (c, p) => { const s = opts.newOptionsMap.get(c.key) || opts.newOptionsMap.set(c.key, new Set()).get(c.key); s.add(p); };
   const idIdx = imp.mapping.indexOf('id'), pidIdx = imp.mapping.indexOf('parent_id');
@@ -438,12 +484,12 @@ function buildPlan() {
     if (errs.length) action = $('skipBad').checked ? 'skip' : 'error';
     return { n: n + 2, raw: r, rec, id, parentId, action, errs, warns };
   });
-  imp.plan = { li, mode, items, problems, opts, mappedCols, existing, parents, idIdx };
+  imp.plan = { li, mode, items, problems, opts, mappedCols, existing, parents, idIdx, newCols };
   renderPreview();
 }
 
 function renderPreview() {
-  const { li, mode, items, problems, opts, mappedCols } = imp.plan;
+  const { li, mode, items, problems, opts, mappedCols, newCols } = imp.plan;
   stepPreview.classList.remove('off');
   const adds = items.filter(i => i.action === 'add').length, upds = items.filter(i => i.action === 'update').length;
   const skips = items.filter(i => i.action === 'skip').length, errors = items.filter(i => i.action === 'error').length;
@@ -461,6 +507,7 @@ function renderPreview() {
     const cur = countLevel(state.rows, li);
     sum.append(el('span', { className: 'pill red', textContent: 'Removes the current ' + cur + ' ' + levelTitle(li) + (li + 1 < levels().length ? ' and everything nested under them' : '') }));
   }
+  if (newCols.length) sum.append(el('span', { className: 'pill blue', textContent: 'New columns: ' + newCols.map(c => c.label).join(', ') }));
   const newOpts = [...opts.newOptionsMap].map(([k, s]) => (levels()[li].columns.find(c => c.key === k) || {}).label + ': ' + [...s].join(', '));
   if (newOpts.length) sum.append(el('span', { className: 'pill blue', textContent: 'New choices: ' + newOpts.join(' · ') }));
 
@@ -492,11 +539,11 @@ function renderPreview() {
   $('applyBtn').disabled = blocked;
   $('applyNote').textContent = blocked
     ? (problems.length ? 'Fix the points above to continue.' : errors ? 'Some rows have errors. Fix the file, or tick "Skip rows with errors".' : 'Nothing to import.')
-    : 'Writes ' + (adds + upds) + ' records to ' + levelTitle(li) + '. A snapshot is taken first.';
+    : (newCols.length ? 'Creates ' + newCols.length + (newCols.length === 1 ? ' column' : ' columns') + ' and writes ' : 'Writes ') + (adds + upds) + ' records to ' + levelTitle(li) + '. A snapshot is taken first.';
 }
 
 $('applyBtn').onclick = async () => {
-  const { li, mode, items, opts, mappedCols, existing, parents } = imp.plan;
+  const { li, mode, items, opts, mappedCols, existing, parents, newCols } = imp.plan;
   const live = items.filter(i => i.action === 'add' || i.action === 'update');
   if (mode === 'replace' && !await ask('Replace every ' + levelTitle(li) + ' record with the ' + live.length + ' rows from the file?', 'Replace', { danger: true })) return;
   const next = JSON.parse(JSON.stringify(state));
@@ -509,6 +556,7 @@ $('applyBtn').onclick = async () => {
     else par.forEach(p => (p.children = []));
     ex.clear();
   }
+  next.config.levels[li].columns.push(...newCols.map(c => ({ ...c })));   // columns created from the file
   const hasKids = li + 1 < next.config.levels.length;
   let added = 0, updated = 0, seq = maxId(next.rows);
   for (const i of live) {
@@ -535,7 +583,8 @@ $('applyBtn').onclick = async () => {
   $('applyBtn').disabled = true;
   try {
     await putState(next, 'before-import-' + levelTitle(li));
-    toast('Imported: ' + added + ' added, ' + updated + ' updated.');
+    toast('Imported: ' + added + ' added, ' + updated + ' updated' + (newCols.length ? ', ' + newCols.length + (newCols.length === 1 ? ' column' : ' columns') + ' created.' : '.'));
+    imp.newCols = {};
     stepPreview.classList.add('off'); stepMap.classList.add('off');
     $('csvOpts').classList.add('hidden');
     $('csvDrop').querySelector('b').textContent = 'Choose a CSV file';

@@ -70,12 +70,13 @@
 
   /* ---------- shell ---------- */
   .shell { flex:1; min-width:0; display:flex; flex-direction:column; min-height:100vh; }
-  header { display:flex; align-items:flex-end; gap:16px; padding:34px 36px 0; }
+  header { display:flex; align-items:flex-end; gap:16px; padding:34px 24px 0; }
+  html.navhidden header { padding-left:36px; }   /* clear of the show-sidebar tab */
   .eyebrow { font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
   .eyebrow::before { content:""; width:18px; height:2px; border-radius:2px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
   header h1 { font-size:30px; margin:0; letter-spacing:-.035em; font-weight:800; line-height:1.1; }
   .hgroup { flex:1; }
-  main { padding:22px 36px 40px; overflow:auto; flex:1; animation:rise .5s cubic-bezier(.2,.8,.2,1) both; }
+  main { padding:22px 24px 40px; overflow:auto; flex:1; animation:rise .5s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes rise { from { opacity:0; transform:translateY(10px); } }
 
   /* ---------- KPI tiles ---------- */
