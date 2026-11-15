@@ -22,6 +22,8 @@ A **Lookup** column links one data set to another in the same project. Pick the 
 
 **From a CSV file.** "New data set" can start from a CSV: choose the file, tick the columns to keep, rename them or change the guessed type (text, number, date, yes / no, choice, person), and optionally bring in the rows. In Configure, "Add columns from a CSV file" adds ticked columns to an existing data set. On the Import / Export page, any file column that matches no field can be set to **Create a new column** (or all of them at once); the columns are created, with a type guessed from the values, when the import is confirmed.
 
+**Totals and cards.** A column's menu (the arrow in its heading) has a Total setting. Each total shows under the grid and as a card above it. **Count by value** makes a breakdown card titled with the column's name: one row per distinct value with a bar, how many rows have it and its share, for example Priority 1 and 2, plus a row for blanks. Click a row to filter the grid to that value. A counted Choice column shows a card with a stacked bar and one pill per choice.
+
 **Configure.** Opens on the data set's columns: one row per column with its name, type and main setting. Choice lists and lookup settings open under their row. Drag the handle to reorder, or press Alt + ↑ / ↓ in a name box.
 
 ## Data

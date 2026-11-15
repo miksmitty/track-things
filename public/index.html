@@ -282,6 +282,27 @@
   .showchips .hint { font-size:12px; color:var(--faint); }
   td.lookup .pill.missing::before { content:"? "; color:var(--red); }
   td.lookup .unset { color:var(--faint); font-size:11.5px; font-style:italic; }
+  /* "Count by value" card: column name, then value / bar / count / share rows */
+  .kpis { align-items:start; }   /* a tall by-value card must not stretch the plain tiles beside it */
+  .kpi.pivot { display:block; grid-column:span 2; padding:13px 18px 11px; }
+  @media (max-width:520px) { .kpi.pivot { grid-column:auto; } }
+  .kpi.pivot .phead { display:flex; align-items:baseline; gap:10px; margin-bottom:7px; }
+  .kpi.pivot .pt { font-size:15px; font-weight:800; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kpi.pivot .ps { font-size:12px; color:var(--muted); margin-left:auto; white-space:nowrap; }
+  .kpi.pivot .prows { display:grid; grid-template-columns:fit-content(45%) 1fr max-content max-content; column-gap:10px; row-gap:1px; align-items:center; }
+  .kpi.pivot .prow { display:grid; grid-template-columns:subgrid; grid-column:1 / -1; align-items:center; padding:3px 6px; margin:0 -6px; border:none; border-radius:7px; background:none; font:inherit; color:inherit; text-align:left; }
+  .kpi.pivot button.prow { cursor:pointer; }
+  .kpi.pivot button.prow:hover { background:var(--hover); color:inherit; }
+  .kpi.pivot .pv { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kpi.pivot .pbar { height:8px; border-radius:999px; background:var(--gray-soft); overflow:hidden; }
+  .kpi.pivot .pbar i { display:block; height:100%; border-radius:999px; background:var(--kc,var(--accent)); }
+  .kpi.pivot .pc { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; text-align:right; min-width:2ch; }
+  .kpi.pivot .pp { font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; min-width:4ch; }
+  .kpi.pivot .prow.blank .pv { color:var(--faint); font-weight:500; font-style:italic; }
+  .kpi.pivot .prow.blank .pbar i { background:var(--line-strong); }
+  .kpi.pivot .prow.on { background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .kpi.pivot.filtering .prow:not(.on) { opacity:.5; }
+  .kpi.pivot .pmore { grid-column:1 / -1; font-size:12px; color:var(--faint); padding:3px 0 0; }
   .empty button.art { padding:0; border:none; cursor:pointer; transition:.15s; }
   .empty button.art:hover { box-shadow:var(--glow); transform:translateY(-2px); }
   .empty button.art:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
@@ -724,15 +745,16 @@ const daysUntil = d => Math.round((new Date(d) - new Date(today())) / 86400000);
 const hasDoneRule = level => rulesFor(level).some(r => r.effect && r.effect.done);
 
 // ---- aggregation (shown in a totals row under each grid) ----
-const AGG_LABELS = { count: 'Count', distinct: 'Distinct', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max' };
+// 'pivot' counts the rows for each distinct value and shows them as a breakdown card above the grid.
+const AGG_LABELS = { count: 'Count', distinct: 'Distinct', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max', pivot: 'Count by value' };
 const aggOptions = c => ({
-  number: ['count', 'distinct', 'sum', 'avg', 'min', 'max'],
-  date: ['count', 'min', 'max'],
-  checkbox: ['count'],
-  text: ['count', 'distinct'],
-  choice: ['count', 'distinct'],
-  person: ['count', 'distinct'],
-  lookup: ['count', 'distinct'],
+  number: ['count', 'pivot', 'distinct', 'sum', 'avg', 'min', 'max'],
+  date: ['count', 'pivot', 'min', 'max'],
+  checkbox: ['count', 'pivot'],
+  text: ['count', 'pivot', 'distinct'],
+  choice: ['count', 'distinct'],   // a counted choice column already shows as a breakdown card
+  person: ['count', 'pivot', 'distinct'],
+  lookup: ['count', 'pivot', 'distinct'],
   notes: ['count'],
 }[c.type]);
 const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -740,7 +762,7 @@ const fmtNum = n => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(
 function aggregate(c, list) {
   const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]);
   const filled = c.type === 'checkbox' ? vals.filter(Boolean) : vals.filter(v => v !== '' && v != null);
-  if (c.agg === 'count') return filled.length;
+  if (c.agg === 'count' || c.agg === 'pivot') return filled.length;
   if (c.agg === 'distinct') return new Set(filled).size;
   if (c.type === 'date') {
     if (!filled.length) return '';
@@ -802,7 +824,7 @@ function openMenu(anchor, c, ui, rows, refresh) {
   );
   const aggSel = el('select');
   aggSel.append(el('option', { value: '', textContent: 'None' }));
-  aggOptions(c).forEach(a => aggSel.append(el('option', { value: a, textContent: c.type === 'checkbox' ? 'Checked' : AGG_LABELS[a] })));
+  aggOptions(c).forEach(a => aggSel.append(el('option', { value: a, textContent: a === 'pivot' ? AGG_LABELS.pivot : c.type === 'checkbox' ? 'Checked' : AGG_LABELS[a] })));
   aggSel.value = c.agg || '';
   aggSel.onchange = () => { if (aggSel.value) c.agg = aggSel.value; else delete c.agg; save(); closeMenu(); refresh(); };
   m.append(el('label', { className: 'aggrow' }, 'Total', aggSel), el('hr'));
@@ -952,7 +974,7 @@ function makeGrid(level, rows, ui, opts) {
       if (opts.subGrid) fr.append(el('td'));
       fr.append(el('td'));
       cols.forEach(c => fr.append(c.agg
-        ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
+        ? el('td', { className: 'agg' }, el('span', { textContent: (c.type === 'checkbox' ? 'Checked' : c.agg === 'pivot' ? 'Count' : AGG_LABELS[c.agg]) + ' ' }), el('b', { textContent: aggregate(c, list) }))
         : el('td')));
       fr.append(el('td'));
       tfoot.append(fr);
@@ -1381,49 +1403,91 @@ function renderKpis() {
     if (pct != null) t.append(ring(pct, color));
     return t;
   };
-  // A choice column counted: the total on top, then one line per option with its share of the filled cells.
-  // Clicking a pill on a top-level column filters the grid by that choice (click again to remove it).
-  const breakdown = (c, list, label, total, color, depth) => {
-    const vals = isMulti(c) ? list.flatMap(r => multiVals(r[c.key])) : list.map(r => r[c.key]).filter(v => v !== '' && v != null);
+  // Breakdown cards. Values are the same keys the column filter uses, so clicking one on a top-level column
+  // filters the grid by it (again to clear; ⌘/Ctrl-click to add or remove from the selection).
+  const filterBy = (item, c, o, text) => {
+    const active = uiMain.vals[c.key];
+    item.type = 'button';
+    item.classList.toggle('on', !!(active && active.has(o)));
+    const only = active && active.size === 1 && active.has(o);
+    item.dataset.tip = (only ? 'Clear filter' : 'Show only ' + c.label + ': ' + text) + '\n' + (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '-click to add or remove from the selection';
+    item.onclick = e => {
+      let set;
+      if (e.ctrlKey || e.metaKey) {                       // add to / remove from the current selection
+        set = uiMain.vals[c.key] || new Set();
+        set.has(o) ? set.delete(o) : set.add(o);
+      } else set = only ? new Set() : new Set([o]);       // plain click: just this one (again to clear)
+      if (set.size) uiMain.vals[c.key] = set; else delete uiMain.vals[c.key];
+      render();
+    };
+  };
+  const countKeys = (c, list) => {
+    const all = list.flatMap(r => keysOf(c, r[c.key]));
     const counts = {};
-    vals.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+    all.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+    const blanks = counts[''] || 0;
+    delete counts[''];
+    return { counts, blanks, entries: all.length };
+  };
+  // A counted choice column: the total on top, a stacked bar, then one pill per option with its count.
+  const breakdown = (c, list, label, total, color, depth) => {
+    const { counts } = countKeys(c, list);
     const names = [...new Set([...(c.options || []), ...Object.keys(counts)])];
     const t = tile(label, total, color, ICONS.count);
     t.classList.add('split');
-    const toneVar = o => toneColor(optionTone(c, o) || 'gray');
     const stack = el('div', { className: 'stack' });
     names.filter(o => counts[o]).forEach(o => {
       const seg = el('span', { title: o + ': ' + counts[o] });
       seg.style.width = (counts[o] / total * 100) + '%';
-      seg.style.background = toneVar(o);
+      seg.style.background = toneColor(optionTone(c, o) || 'gray');
       stack.append(seg);
     });
     const legend = el('div', { className: 'legend' });
-    const active = depth === 0 ? uiMain.vals[c.key] : null;
     names.forEach(o => {
       const item = el(depth === 0 ? 'button' : 'span', { className: 'pill', textContent: o });
       item.dataset.tone = optionTone(c, o);
       item.append(el('b', { textContent: counts[o] || 0 }));
-      if (depth === 0) {
-        item.type = 'button';
-        item.classList.toggle('on', !!(active && active.has(o)));
-        const only = active && active.size === 1 && active.has(o);
-        item.dataset.tip = (only ? 'Clear filter' : 'Show only ' + c.label + ': ' + o) + '\n' + (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '-click to add or remove from the selection';
-        item.onclick = e => {
-          let set;
-          if (e.ctrlKey || e.metaKey) {                       // add to / remove from the current selection
-            set = uiMain.vals[c.key] || new Set();
-            set.has(o) ? set.delete(o) : set.add(o);
-          } else set = only ? new Set() : new Set([o]);       // plain click: just this one (again to clear)
-          if (set.size) uiMain.vals[c.key] = set; else delete uiMain.vals[c.key];
-          render();
-        };
-      }
+      if (depth === 0) filterBy(item, c, o, o);
       legend.append(item);
     });
-    if (active) t.classList.add('filtering');
+    if (depth === 0 && uiMain.vals[c.key]) t.classList.add('filtering');
     if (!names.length) legend.append(el('span', { className: 'none', textContent: 'No choices yet' }));
     t.append(el('div', { className: 'opts' }, stack, legend));
+    return t;
+  };
+  // "Count by value" on any column: a small table. The column's name is the title; each row is one value with a
+  // bar, how many rows have it, and that as a share of all rows. Value on the left, count on the right, so a
+  // column of numbers (Priority 1 / 2) cannot be misread as "1 7". Blank cells get their own muted row.
+  const pivotCard = (c, list, title, color, depth) => {
+    const { counts, blanks, entries } = countKeys(c, list);
+    const MAX = 8;   // a free-text column can have any number of values: show the most common, sum up the rest
+    let names = Object.keys(counts).sort((a, b) => compare(a, b, c.type === 'number' ? 'number' : 'text'));
+    const extra = names.length <= MAX ? [] : names.slice().sort((a, b) => counts[b] - counts[a]).slice(MAX);
+    if (extra.length) names = names.filter(n => !extra.includes(n));
+    const show = o => c.type === 'date' ? fmtDate(o, dateFormat(c)) : o;
+    const distinct = names.length + extra.length;
+    const t = el('div', { className: 'kpi pivot' });
+    t.style.setProperty('--kc', color);
+    t.append(el('div', { className: 'phead' }, el('span', { className: 'pt', textContent: title }),
+      el('span', { className: 'ps', textContent: distinct + (distinct === 1 ? ' value' : ' values') + ' · ' + list.length + (list.length === 1 ? ' row' : ' rows') })));
+    const rowsBox = el('div', { className: 'prows' });
+    const longest = Math.max(1, blanks, ...names.map(o => counts[o]));
+    const line = (o, n, text) => {
+      const row = el(depth === 0 ? 'button' : 'div', { className: 'prow' + (o === '' ? ' blank' : '') });
+      const bar = el('i');
+      bar.style.width = (n / longest * 100) + '%';
+      if (o !== '' && isStatusCol(c) && tone(o)) bar.style.background = toneColor(tone(o));   // status columns keep their value colours
+      row.append(el('span', { className: 'pv', textContent: text }), el('span', { className: 'pbar' }, bar),
+        el('b', { className: 'pc', textContent: n }), el('span', { className: 'pp', textContent: Math.round(n / (entries || 1) * 100) + '%' }));
+      if (depth === 0) filterBy(row, c, o, o === '' ? 'blank' : text);
+      rowsBox.append(row);
+    };
+    names.forEach(o => line(o, counts[o], show(o)));
+    if (blanks) line('', blanks, '(Blank)');
+    if (extra.length) rowsBox.append(el('div', { className: 'pmore', textContent: '+ ' + extra.length + ' more ' + (extra.length === 1 ? 'value' : 'values') + ' in ' + extra.reduce((n, o) => n + counts[o], 0) + ' rows' }));
+    if (!names.length && !blanks) rowsBox.append(el('div', { className: 'pmore', textContent: 'No values yet' }));
+    if (depth === 0 && uiMain.vals[c.key]) t.classList.add('filtering');
+    t.append(rowsBox);
     return t;
   };
   box.replaceChildren();
@@ -1432,8 +1496,9 @@ function renderKpis() {
   const addTiles = (cols, list, prefix, depth) => cols.filter(c => c.agg).forEach(c => {
     const color = PALETTE[i++ % PALETTE.length];
     const v = aggregate(c, list);
-    const label = prefix + c.label + ' · ' + (c.type === 'checkbox' ? 'checked' : AGG_LABELS[c.agg].toLowerCase());
-    if (c.type === 'checkbox') { const t = tile(label, v, color, ICONS.count, list.length ? v / list.length : 0); t.querySelector('.v').append(el('small', { textContent: '/ ' + list.length })); box.append(t); }
+    const label = prefix + c.label + ' · ' + (c.agg === 'pivot' ? 'by value' : c.type === 'checkbox' ? 'checked' : AGG_LABELS[c.agg].toLowerCase());
+    if (c.agg === 'pivot') box.append(pivotCard(c, list, prefix + c.label, color, depth));
+    else if (c.type === 'checkbox') { const t = tile(label, v, color, ICONS.count, list.length ? v / list.length : 0); t.querySelector('.v').append(el('small', { textContent: '/ ' + list.length })); box.append(t); }
     else if (c.type === 'choice' && c.agg === 'count') box.append(breakdown(c, list, label, v, color, depth));
     else box.append(tile(label, v === '' ? '—' : v, color, c.type === 'date' ? ICONS.date : ICONS[c.agg]));
   });
