@@ -130,6 +130,16 @@ const readCsv = f => { try { return parseCsv(decodeCsv(fs.readFileSync(f))); } c
 // Accept either the new {levels:[…]} shape or the old {columns, subColumns, subTitle} shape.
 function normaliseConfig(raw) {
   const cfg = { title: raw.title || 'Untitled', people: Array.isArray(raw.people) ? raw.people : [], levels: [] };   // people: avatar colour / initials per name used in owner-style columns
+  // views: saved arrangements of the main grid (column order, hidden columns, widths, sort, filters, search), by name
+  cfg.views = (Array.isArray(raw.views) ? raw.views : []).filter(v => v && typeof v.name === 'string' && v.name.trim()).map(v => ({
+    name: v.name.trim(),
+    order: Array.isArray(v.order) ? v.order.map(String) : [],
+    hidden: Array.isArray(v.hidden) ? v.hidden.map(String) : [],
+    widths: v.widths && typeof v.widths === 'object' ? v.widths : {},
+    sort: v.sort && v.sort.key ? { key: String(v.sort.key), dir: v.sort.dir < 0 ? -1 : 1 } : null,
+    vals: v.vals && typeof v.vals === 'object' ? Object.fromEntries(Object.entries(v.vals).filter(([, a]) => Array.isArray(a))) : {},
+    search: typeof v.search === 'string' ? v.search : '',
+  }));
   if (Array.isArray(raw.levels) && raw.levels.length) {
     cfg.levels = raw.levels.map((l, i) => ({ title: l.title || (i ? `Level ${i + 1}` : 'Rows'), columns: Array.isArray(l.columns) ? l.columns : [], rules: Array.isArray(l.rules) ? l.rules : undefined }));
   } else {

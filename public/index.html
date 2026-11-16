@@ -21,6 +21,28 @@
   .chip b { font-weight:500; opacity:.8; }
   .chip button { border:none; background:none; padding:0 4px; color:inherit; font-size:13px; line-height:1; border-radius:50%; }
   .chip button:hover { background:var(--accent); color:#fff; }
+  /* toolbar buttons: Views and Columns */
+  .tbtn { padding:5px 10px; font-size:12.5px; font-weight:600; gap:6px; color:var(--muted); background:transparent; border-color:transparent; white-space:nowrap; max-width:220px; }
+  .tbtn:hover { background:var(--hover); color:var(--text); border-color:transparent; }
+  .tbtn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .tbtn .nm { overflow:hidden; text-overflow:ellipsis; }
+  .tbtn.on { color:var(--accent-ink); background:var(--accent-soft); }
+  .tbtn .dirty { width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none; }
+  .tbtn .n { font-size:10.5px; font-weight:700; background:var(--gray-soft); padding:0 6px; border-radius:999px; }
+  td.subcell .bar .tbtn { padding:3px 8px; font-size:12px; }
+  .menu .mi.cur { color:var(--accent-ink); font-weight:600; }
+  .menu .mi.cur::after { content:"✓"; float:right; }
+  .menu .mi.danger:hover { background:var(--red-soft); color:var(--red); }
+  .menu .mh { padding:6px 10px 2px; font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+  .menu.cols .vrow { gap:8px; }
+  .menu.cols .vrow .ty { margin-left:auto; font-size:10.5px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  /* dragging a column header to move it */
+  th.h { cursor:grab; }
+  th.h.dragging { opacity:.35; }
+  th.h.drop-before { box-shadow:inset 3px 0 0 var(--accent); }
+  th.h.drop-after { box-shadow:inset -3px 0 0 var(--accent); }
+  body.coldrag, body.coldrag * { cursor:grabbing !important; user-select:none; }
+  .colghost { position:fixed; z-index:60; pointer-events:none; padding:5px 10px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent-ink); background:var(--panel-solid); border:1px solid var(--accent); border-radius:8px; box-shadow:var(--shadow); transform:translate(-50%,-50%); }
 
   /* ---------- table ---------- */
   .scroll { overflow-x:auto; }
@@ -848,6 +870,146 @@ const saveWidths = () => {
 };
 const defaultWidth = c => ({ number: 90, date: 150, checkbox: 70, choice: 130, notes: 70, lookup: 170 }[c.type] || 150);
 
+// ---- column layout (order and hidden columns), remembered per data set and level in this browser ----
+const layoutKey = i => 'tt-layout-' + TT.project + '/' + TT.set + '-' + i;
+// Configure sets which columns exist; the layout only changes how this browser shows them. A saved view captures it.
+const layouts = {};
+const layoutFor = i => {
+  if (!layouts[i]) {
+    try { layouts[i] = JSON.parse(localStorage.getItem(layoutKey(i))) || {}; } catch { layouts[i] = {}; }
+    if (!Array.isArray(layouts[i].order)) layouts[i].order = [];
+    if (!Array.isArray(layouts[i].hidden)) layouts[i].hidden = [];
+  }
+  return layouts[i];
+};
+const saveLayout = i => { try { localStorage.setItem(layoutKey(i), JSON.stringify(layoutFor(i))); } catch {} };
+// Every column of a level in display order: those in the saved order first, then any new ones at their configured position.
+function orderedCols(cols, L) {
+  const out = L.order.map(k => cols.find(c => c.key === k)).filter(Boolean);
+  cols.forEach((c, i) => { if (!out.includes(c)) out.splice(Math.min(i, out.length), 0, c); });
+  return out;
+}
+const isHidden = (L, c) => L.hidden.includes(c.key);
+const visibleCols = (cols, L) => orderedCols(cols, L).filter(c => !isHidden(L, c));
+// Move column `key` so it sits before (or after) column `target` in the full order of the level.
+function moveColumn(level, key, target, after) {
+  const L = layoutFor(level);
+  const keys = orderedCols(levels()[level].columns, L).map(c => c.key).filter(k => k !== key);
+  const at = keys.indexOf(target);
+  keys.splice(at < 0 ? keys.length : at + (after ? 1 : 0), 0, key);
+  L.order = keys;
+  saveLayout(level);
+}
+function setHidden(level, key, hide) {
+  const L = layoutFor(level);
+  const cols = levels()[level].columns;
+  if (hide && visibleCols(cols, L).length <= 1 && !isHidden(L, cols.find(c => c.key === key) || {})) { toast('At least one column has to stay visible.', true); return false; }
+  L.hidden = hide ? [...new Set([...L.hidden, key])] : L.hidden.filter(k => k !== key);
+  saveLayout(level);
+  return true;
+}
+
+// ---- saved views: a named arrangement of the main grid (columns, widths, sort, filters, search), kept with the data ----
+const views = () => state.config.views || (state.config.views = []);
+const viewKeyName = () => 'tt-view-' + TT.project + '/' + TT.set;   // the view open last time, per data set
+const viewStore = { get: () => { try { return localStorage.getItem(viewKeyName()) || ''; } catch { return ''; } }, set: v => { try { localStorage.setItem(viewKeyName(), v || ''); } catch {} } };
+// What the main grid looks like right now, in the shape a view is stored in.
+function currentView() {
+  const cols = levels()[0].columns, L = layoutFor(0);
+  const vals = {};
+  Object.keys(uiMain.vals).filter(k => cols.some(c => c.key === k)).sort().forEach(k => (vals[k] = [...uiMain.vals[k]].sort()));
+  return {
+    order: orderedCols(cols, L).map(c => c.key),
+    hidden: L.hidden.filter(k => cols.some(c => c.key === k)).sort(),
+    widths: { ...widthsFor(0) },
+    sort: uiMain.sort && cols.some(c => c.key === uiMain.sort.key) ? { key: uiMain.sort.key, dir: uiMain.sort.dir } : null,
+    vals,
+    search: uiMain.search || '',
+  };
+}
+// Widths are left out of the comparison: nudging a column edge should not count as changing the view.
+const viewKey = v => { const cols = levels()[0].columns; const has = k => cols.some(c => c.key === k); const vals = {}; Object.keys(v.vals || {}).filter(has).sort().forEach(k => (vals[k] = [...v.vals[k]].sort())); return JSON.stringify({ order: orderedCols(cols, { order: v.order || [] }).map(c => c.key), hidden: (v.hidden || []).filter(has).sort(), sort: v.sort && has(v.sort.key) ? v.sort : null, vals, search: v.search || '' }); };
+const activeView = () => views().find(v => v.name === uiMain.view) || null;
+const viewDirty = () => { const v = activeView(); return !!v && viewKey(v) !== viewKey(currentView()); };
+function applyView(v) {
+  const L = layoutFor(0);
+  L.order = (v.order || []).slice(); L.hidden = (v.hidden || []).slice();
+  saveLayout(0);
+  Object.assign(widthsFor(0), v.widths || {}); saveWidths();
+  uiMain.sort = v.sort ? { key: v.sort.key, dir: v.sort.dir } : null;
+  uiMain.vals = {};
+  Object.entries(v.vals || {}).forEach(([k, a]) => (uiMain.vals[k] = new Set(a)));
+  uiMain.search = v.search || '';
+  uiMain.view = v.name;
+  viewStore.set(v.name);
+  render();
+}
+function resetView() {
+  const L = layoutFor(0);
+  L.order = []; L.hidden = []; saveLayout(0);
+  uiMain.sort = null; uiMain.vals = {}; uiMain.search = ''; uiMain.view = '';
+  viewStore.set('');
+  render();
+}
+function openViewsMenu(anchor) {
+  closeMenu();
+  const m = (menuEl = el('div', { className: 'menu' }));
+  const cur = activeView(), dirty = viewDirty();
+  const item = (t, fn, cls = '') => el('button', { className: 'mi' + (cls ? ' ' + cls : ''), textContent: t, type: 'button', onclick: () => { closeMenu(); fn(); } });
+  const list = views();
+  if (list.length) {
+    m.append(el('div', { className: 'mh', textContent: 'Saved views' }));
+    list.forEach(v => m.append(item(v.name, () => applyView(v), cur === v ? 'cur' : '')));
+    m.append(el('hr'));
+  }
+  m.append(item('Save as new view…', async () => {
+    const name = await askText('Name for this view', { placeholder: 'e.g. My open items', okLabel: 'Save view' });
+    if (!name) return;
+    const existing = views().find(v => v.name.toLowerCase() === name.toLowerCase());
+    if (existing && !await ask('A view called “' + existing.name + '” already exists. Replace it?', 'Replace')) return;
+    const v = { name: existing ? existing.name : name, ...currentView() };
+    if (existing) Object.assign(existing, v); else views().push(v);
+    uiMain.view = v.name; viewStore.set(v.name);
+    save(); render(); toast('View “' + v.name + '” saved.');
+  }));
+  if (cur) {
+    m.append(item('Update “' + cur.name + '”' + (dirty ? '' : ' (no changes)'), () => { Object.assign(cur, currentView()); save(); render(); toast('View “' + cur.name + '” updated.'); }));
+    m.append(item('Rename “' + cur.name + '”…', async () => {
+      const name = await askText('New name for this view', { value: cur.name, okLabel: 'Rename' });
+      if (!name || name === cur.name) return;
+      if (views().some(v => v !== cur && v.name.toLowerCase() === name.toLowerCase())) { toast('There is already a view called “' + name + '”.', true); return; }
+      cur.name = name; uiMain.view = name; viewStore.set(name); save(); render();
+    }));
+    m.append(item('Delete “' + cur.name + '”', async () => {
+      if (!await ask('Delete the view “' + cur.name + '”? The grid stays as it is.', 'Delete', { danger: true })) return;
+      views().splice(views().indexOf(cur), 1); uiMain.view = ''; viewStore.set(''); save(); render();
+    }, 'danger'));
+  }
+  m.append(el('hr'), item('Reset columns and filters', resetView));
+  document.body.append(m);
+  placeMenu(m, anchor);
+}
+// Checklist of every column at a level: tick to show, untick to hide.
+function openColumnsMenu(anchor, level, rebuild) {
+  closeMenu();
+  const L = layoutFor(level), cols = levels()[level].columns;
+  const m = (menuEl = el('div', { className: 'menu cols' }));
+  const list = el('div', { className: 'vals' });
+  const draw = () => {
+    list.replaceChildren();
+    orderedCols(cols, L).forEach(c => {
+      const cb = el('input', { type: 'checkbox', checked: !isHidden(L, c) });
+      cb.onchange = () => { if (!setHidden(level, c.key, !cb.checked)) { cb.checked = true; return; } rebuild(); };
+      list.append(el('label', { className: 'vrow' }, cb, el('span', { textContent: c.label }), el('span', { className: 'ty', textContent: TYPE_LABELS[c.type] === 'Notes (rich text)' ? 'Notes' : TYPE_LABELS[c.type] || c.type })));
+    });
+  };
+  draw();
+  const showAll = el('button', { type: 'button', className: 'ghost', textContent: 'Show all', onclick: () => { L.hidden = []; saveLayout(level); draw(); rebuild(); } });
+  m.append(el('div', { className: 'mh', textContent: 'Show columns' }), list, el('div', { className: 'mbtns' }, showAll, el('button', { type: 'button', className: 'primary', textContent: 'Done', onclick: closeMenu })));
+  document.body.append(m);
+  placeMenu(m, anchor);
+}
+
 // ---- Excel-style column menu: sort + value checklist ----
 let menuEl = null;
 function placeMenu(m, anchor) {
@@ -872,7 +1034,7 @@ const closeMenu = () => {
 document.addEventListener('mousedown', e => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 
-function openMenu(anchor, c, ui, rows, refresh) {
+function openMenu(anchor, c, ui, rows, refresh, onHide) {
   closeMenu();
   const sortType = c.type === 'checkbox' || c.type === 'choice' ? 'text' : c.type;
   const distinct = [...new Set([...rows.flatMap(r => keysOf(c, r[c.key])), ...(c.type === 'choice' ? c.options || [] : [])])].sort((a, b) => compare(a, b, sortType));
@@ -885,6 +1047,7 @@ function openMenu(anchor, c, ui, rows, refresh) {
     item('Sort ' + labels[1], () => (ui.sort = { key: c.key, dir: -1 })),
     item('Clear sort', () => { if (ui.sort && ui.sort.key === c.key) ui.sort = null; }),
     item('Clear filter', () => { delete ui.vals[c.key]; }),
+    ...(onHide ? [item('Hide column', onHide)] : []),
     el('hr'),
   );
   const aggSel = el('select');
@@ -1316,8 +1479,11 @@ function navAfter(tbody, keep) {
 
 // Generic grid used for every level: level 0 is the main table, deeper levels are nested sub-record tables.
 function makeGrid(level, rows, ui, opts) {
-  const cols = levels()[level].columns;
+  const allCols = levels()[level].columns;             // every column: filters, search and new rows use all of them
+  const L = layoutFor(level);
+  const cols = visibleCols(allCols, L);                 // what is shown, in display order
   opts = { ...opts, main: level === 0, subGrid: level + 1 < levels().length };
+  const rebuild = () => (opts.onStructure ? opts.onStructure() : render());   // layout changed: build the table again
   const W = widthsFor(level);
   const colW = c => W[c.key] || defaultWidth(c);
   const table = el('table');
@@ -1359,13 +1525,51 @@ function makeGrid(level, rows, ui, opts) {
     };
     redraws.push(draw);
     draw();
+    let dragged = false;   // a drag that moved the column must not also sort it
     th.onclick = () => {
+      if (dragged) { dragged = false; return; }
       ui.sort = ui.sort && ui.sort.key === c.key
         ? (ui.sort.dir > 0 ? { key: c.key, dir: -1 } : null)
         : { key: c.key, dir: 1 };
       refresh();
     };
-    dd.onclick = e => { e.stopPropagation(); openMenu(dd, c, ui, rows, refresh); };
+    dd.onclick = e => { e.stopPropagation(); openMenu(dd, c, ui, rows, refresh, () => { if (setHidden(level, c.key, true)) rebuild(); }); };
+    // Drag the heading left or right to move the column; a marker shows where it will land.
+    th.onmousedown = e => {
+      if (e.button !== 0 || e.target.closest('.dd, .rs')) return;
+      const x0 = e.clientX, y0 = e.clientY;
+      let started = false, target = null, after = false, ghost = null;
+      const heads = () => [...headRow.querySelectorAll('th.h')];
+      const clearMarks = () => heads().forEach(t => t.classList.remove('drop-before', 'drop-after'));
+      const move = ev => {
+        if (!started) {
+          if (Math.abs(ev.clientX - x0) < 6 && Math.abs(ev.clientY - y0) < 6) return;
+          started = true; closeMenu(); hideTip();
+          th.classList.add('dragging'); document.body.classList.add('coldrag');
+          document.body.append((ghost = el('div', { className: 'colghost', textContent: c.label })));
+        }
+        ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
+        clearMarks(); target = null;
+        const hs = heads();
+        const over = hs.find(t => { const r = t.getBoundingClientRect(); return ev.clientX >= r.left && ev.clientX <= r.right; })
+          || (hs.length && ev.clientX > hs[hs.length - 1].getBoundingClientRect().right ? hs[hs.length - 1] : null);
+        if (!over || over === th) return;
+        const r = over.getBoundingClientRect();
+        after = ev.clientX > r.left + r.width / 2;
+        if ((after && over.nextElementSibling === th) || (!after && over.previousElementSibling === th)) return;   // would land where it already is
+        target = over; over.classList.add(after ? 'drop-after' : 'drop-before');
+      };
+      const up = () => {
+        removeEventListener('mousemove', move); removeEventListener('mouseup', up);
+        if (!started) return;
+        dragged = true; setTimeout(() => (dragged = false), 0);
+        clearMarks(); th.classList.remove('dragging'); document.body.classList.remove('coldrag'); ghost.remove();
+        if (target && target._col) { moveColumn(level, c.key, target._col.key, after); rebuild(); }
+      };
+      addEventListener('mousemove', move);
+      addEventListener('mouseup', up);
+    };
+    th._col = c;
     const grip = el('div', { className: 'rs', title: 'Drag to resize' });
     grip.onclick = e => e.stopPropagation();
     grip.onmousedown = e => {
@@ -1402,10 +1606,10 @@ function makeGrid(level, rows, ui, opts) {
 
   function drawChips() {
     chips.replaceChildren();
-    cols.forEach(c => {
+    allCols.forEach(c => {   // a filter on a hidden column still applies, so it still gets a chip
       const set = ui.vals[c.key];
       if (!set) return;
-      const chip = el('span', { className: 'chip' }, el('b', { textContent: c.label + ': ' }), el('span', { textContent: set.size + ' selected' }));
+      const chip = el('span', { className: 'chip' }, el('b', { textContent: c.label + (isHidden(L, c) ? ' (hidden)' : '') + ': ' }), el('span', { textContent: set.size + ' selected' }));
       chip.append(el('button', { type: 'button', textContent: '×', title: 'Clear filter', onclick: () => { delete ui.vals[c.key]; refresh(); } }));
       chips.append(chip);
     });
@@ -1415,9 +1619,9 @@ function makeGrid(level, rows, ui, opts) {
     const keep = navBefore(tbody);
     tbody.replaceChildren();
     drawChips();
-    let list = rows.filter(r => matches(r, cols, ui));
+    let list = rows.filter(r => matches(r, allCols, ui));
     if (ui.sort) {
-      const col = cols.find(c => c.key === ui.sort.key);
+      const col = allCols.find(c => c.key === ui.sort.key);
       if (col) list = list.slice().sort((a, b) => ui.sort.dir * compare(shown(col, a[col.key]), shown(col, b[col.key]), col.type));
     }
     tfoot.replaceChildren();
@@ -1806,7 +2010,7 @@ function makeGrid(level, rows, ui, opts) {
   body();
   const addRow = () => {
     const r = { id: uid() };
-    cols.forEach(c => (r[c.key] = c.type === 'checkbox' ? false : isMulti(c) ? [] : ''));
+    allCols.forEach(c => (r[c.key] = c.type === 'checkbox' ? false : isMulti(c) ? [] : ''));
     if (opts.subGrid) r.children = [];
     rows.push(r); save();
     opts.onStructure ? opts.onStructure() : body();
@@ -1814,16 +2018,34 @@ function makeGrid(level, rows, ui, opts) {
     if (f) { f.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); f.focus({ preventScroll: true }); }
   };
   const wrap = el('div', { className: 'card' });
+  // Columns button: show / hide columns at this level. Hidden ones are counted on the button.
+  const hiddenN = allCols.filter(c => isHidden(L, c)).length;
+  const colsBtn = el('button', { type: 'button', className: 'tbtn' + (hiddenN ? ' on' : '') }, svg('M3 5h18v14H3zM9 5v14M15 5v14'), el('span', { className: 'nm', textContent: 'Columns' }));
+  if (hiddenN) colsBtn.append(el('span', { className: 'n', textContent: hiddenN + ' hidden' }));
+  colsBtn.dataset.tip = 'Show or hide columns';
+  colsBtn.onclick = () => openColumnsMenu(colsBtn, level, rebuild);
   if (opts.main) {
     const search = el('input', { type: 'search', placeholder: 'Search all columns…', value: ui.search || '' });
-    search.oninput = () => { ui.search = search.value; body(); };
+    search.oninput = () => { ui.search = search.value; body(); paintViewBtn(); };
     const sbox = el('div', { className: 'search' }, svg('M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z'), search);
-    wrap.append(el('div', { className: 'toolbar' }, sbox, chips, countEl, selbar));
+    // Views button: the active view's name, with a dot when the grid no longer matches what was saved.
+    const viewBtn = el('button', { type: 'button', className: 'tbtn' });
+    const paintViewBtn = () => {
+      const v = activeView();
+      viewBtn.replaceChildren(svg('M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z'), el('span', { className: 'nm', textContent: v ? v.name : 'Views' }));
+      viewBtn.classList.toggle('on', !!v);
+      if (v && viewDirty()) viewBtn.append(el('span', { className: 'dirty' }));
+      viewBtn.dataset.tip = v ? (viewDirty() ? 'View “' + v.name + '” with unsaved changes' : 'View “' + v.name + '”') : 'Save or load a view: columns, filters, sort and search';
+    };
+    paintViewBtn();
+    viewBtn.onclick = () => openViewsMenu(viewBtn);
+    redraws.push(paintViewBtn);
+    wrap.append(el('div', { className: 'toolbar' }, sbox, viewBtn, colsBtn, chips, countEl, selbar));
     window.addMainRow = addRow;
     wrap.append(el('div', { className: 'scroll' }, table));
   } else {
     wrap.append(el('div', { className: 'scroll' }, table));
-    wrap.append(el('div', { className: 'bar' }, el('button', { className: 'ghost', textContent: '+ Add row', onclick: addRow }), countEl, selbar));
+    wrap.append(el('div', { className: 'bar' }, el('button', { className: 'ghost', textContent: '+ Add row', onclick: addRow }), colsBtn, countEl, selbar));
   }
   return wrap;
 }
@@ -2446,7 +2668,7 @@ function openConfig(start) {
       const fix = v => Array.isArray(v) ? v.map(n => renames.get(n) || n) : (renames.get(v) || v);
       newLevels.forEach((lvl, d) => flattenLevel(state.rows, d).forEach(r => lvl.columns.forEach(c => { if (isPersonCol(c) && r[c.key] != null) r[c.key] = fix(r[c.key]); })));
     }
-    state.config = { title: titleIn.value.trim() || 'Untitled', people: newPeople, levels: newLevels };
+    state.config = { title: titleIn.value.trim() || 'Untitled', people: newPeople, levels: newLevels, views: state.config.views || [] };
     const projectName = projIn.value.trim();
     if (projectName && projectName !== state.projectName) { state.projectName = projectName; TT.renameProject(projectName); }
     undoReset();   // earlier versions of the rows belong to the old columns and people
@@ -2461,7 +2683,8 @@ TT.ready.then(() => fetch(TT.api('api/state'))).then(r => { if (!r.ok) throw new
   state = s;
   levels().forEach(l => l.columns.forEach(c => { if (c.type === 'text' && c.look === 'person') { c.type = 'person'; delete c.look; } }));
   undoReset();
-  render();
+  const last = views().find(v => v.name === viewStore.get());   // the view that was open last time is opened again
+  if (last) applyView(last); else render();
   if (location.hash === '#configure') { history.replaceState(null, '', location.pathname + location.search); openConfig(); }
 }).catch(() => { setSaveStatus('error', 'Not connected'); document.getElementById('main').replaceChildren(el('div', { className: 'card empty' }, el('b', { textContent: 'Could not load your data' }), el('span', { textContent: 'Check that the server is running, then reload the page.' }))); });
 </script>
